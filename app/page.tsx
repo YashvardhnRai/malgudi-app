@@ -91,29 +91,8 @@ export default function LandingPage() {
           {/* Login button — always visible */}
           <button
             onClick={() => router.push("/auth")}
-            style={{
-              background: "#F05A28",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              padding: "9px 22px",
-              minHeight: 44,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-              transition: "all 0.2s",
-              boxShadow: "0 0 20px rgba(240,90,40,0.3)",
-              flexShrink: 0,
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 4px 24px rgba(240,90,40,0.5)";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "0 0 20px rgba(240,90,40,0.3)";
-            }}
+            className="btn-primary"
+            style={{ padding: "9px 22px", fontSize: 13, flexShrink: 0 }}
           >
             Login →
           </button>
@@ -239,28 +218,8 @@ export default function LandingPage() {
         }}>
           <button
             onClick={() => router.push("/auth")}
-            style={{
-              background: "#F05A28",
-              color: "#fff",
-              border: "none",
-              borderRadius: 12,
-              padding: "16px 36px",
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "var(--font-display)",
-              boxShadow: "0 0 40px rgba(240,90,40,0.4)",
-              transition: "all 0.3s ease",
-              letterSpacing: 0.3,
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = "translateY(-3px)";
-              e.currentTarget.style.boxShadow = "0 8px 48px rgba(240,90,40,0.6)";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "0 0 40px rgba(240,90,40,0.4)";
-            }}
+            className="btn-primary"
+            style={{ padding: "16px 36px", fontSize: 15, letterSpacing: 0.3 }}
           >
             Open Dashboard →
           </button>
@@ -268,26 +227,8 @@ export default function LandingPage() {
             onClick={() => {
               document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
             }}
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.8)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 12,
-              padding: "16px 36px",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.borderColor = "rgba(240,90,40,0.4)";
-              e.currentTarget.style.color = "#F05A28";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-              e.currentTarget.style.color = "rgba(255,255,255,0.8)";
-            }}
+            className="btn-secondary"
+            style={{ padding: "16px 36px", fontSize: 15 }}
           >
             See how it works
           </button>
@@ -701,29 +642,8 @@ export default function LandingPage() {
         </p>
         <button
           onClick={() => router.push("/auth")}
-          style={{
-            background: "#F05A28",
-            color: "#fff",
-            border: "none",
-            borderRadius: 14,
-            padding: "18px 48px",
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: "pointer",
-            fontFamily: "var(--font-display)",
-            boxShadow: "0 0 60px rgba(240,90,40,0.4)",
-            transition: "all 0.3s ease",
-            position: "relative",
-            letterSpacing: 0.5,
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 12px 60px rgba(240,90,40,0.6)";
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "0 0 60px rgba(240,90,40,0.4)";
-          }}
+          className="btn-primary"
+          style={{ padding: "18px 48px", fontSize: 16, letterSpacing: 0.5, borderRadius: 14 }}
         >
           Open Dashboard →
         </button>

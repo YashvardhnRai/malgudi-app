@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import NavHeader from '@/app/components/NavHeader'
+import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase'
 import type { DashboardSummary, OutletWithStatus } from '@/lib/types'
 
 const isMobile = () =>
@@ -15,22 +16,29 @@ function formatINR(n: number): string {
   return `₹${n}`
 }
 
-function getISTGreeting() {
+function getGreeting() {
   const ist = new Date(
     new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
   )
   const h = ist.getHours()
-  return {
-    greeting: h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening',
-    emoji: h < 12 ? '🌅' : h < 17 ? '☀️' : '🌙',
-    date: ist.toLocaleDateString('en-IN', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Kolkata',
-    }),
-  }
+  const text =
+    h >= 5 && h < 12 ? 'Good morning' :
+    h >= 12 && h < 17 ? 'Good afternoon' :
+    h >= 17 && h < 21 ? 'Good evening' :
+    'Good night'
+  const emoji =
+    h >= 5 && h < 12 ? '🌅' :
+    h >= 12 && h < 17 ? '☀️' :
+    h >= 17 && h < 21 ? '🌆' :
+    '🌙'
+  const date = ist.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  })
+  return { text, emoji, date }
 }
 
 const STATUS_COLOR: Record<OutletWithStatus['status'], string> = {
@@ -49,7 +57,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
-  const { greeting, emoji, date } = getISTGreeting()
+  const { text: greeting, emoji, date } = getGreeting()
 
   useEffect(() => {
     const check = () => setMobile(isMobile())
@@ -57,6 +65,18 @@ export default function CEODashboard({ userName }: { userName: string }) {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  // Session keepalive — redirect to /auth if session expires
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    const supabase = getSupabaseBrowserClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event: unknown, session: unknown) => {
+        if (!session) router.push('/auth')
+      }
+    )
+    return () => subscription.unsubscribe()
+  }, [router])
 
   useEffect(() => {
     fetch('/api/outlets')
@@ -201,7 +221,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
             animation: 'fadeUp 0.7s var(--ease-out-expo) 0.2s both',
           }}
         >
-          {greeting}, Malgudi Team{' '}
+          {greeting}, {userName}{' '}
           <span
             style={{
               display: 'inline-block',
@@ -270,6 +290,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
             : statCards!.map((card, i) => (
                 <div
                   key={card.label}
+                  className="card-hover"
                   style={{
                     background: '#fff',
                     borderRadius: 20,
@@ -277,19 +298,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
                     boxShadow: '0 8px 40px rgba(43,47,119,0.12)',
                     animation: `fadeUp 0.6s var(--ease-out-expo) ${0.4 + i * 0.08}s both`,
                     border: '1px solid rgba(43,47,119,0.06)',
-                    transition:
-                      'transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-smooth)',
                     cursor: 'default',
-                  }}
-                  onMouseEnter={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.transform = 'translateY(-4px)'
-                    el.style.boxShadow = '0 16px 48px rgba(43,47,119,0.18)'
-                  }}
-                  onMouseLeave={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.transform = 'none'
-                    el.style.boxShadow = '0 8px 40px rgba(43,47,119,0.12)'
                   }}
                 >
                   <div
@@ -489,6 +498,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
               return (
                 <div
                   key={outlet.id}
+                  className="card-hover"
                   onClick={() => router.push(`/outlet/${outlet.id}`)}
                   style={{
                     background: '#fff',
@@ -497,21 +507,8 @@ export default function CEODashboard({ userName }: { userName: string }) {
                     border: '1px solid var(--border)',
                     cursor: 'pointer',
                     animation: `fadeUp 0.6s var(--ease-out-expo) ${0.6 + i * 0.1}s both`,
-                    transition: 'all 0.3s var(--ease-spring)',
                     position: 'relative',
                     overflow: 'hidden',
-                  }}
-                  onMouseEnter={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.transform = 'translateY(-4px) scale(1.01)'
-                    el.style.boxShadow = '0 20px 60px rgba(43,47,119,0.15)'
-                    el.style.borderColor = `${color}40`
-                  }}
-                  onMouseLeave={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.transform = 'none'
-                    el.style.boxShadow = 'none'
-                    el.style.borderColor = 'var(--border)'
                   }}
                 >
                   {/* Color accent top bar */}
@@ -675,18 +672,34 @@ export default function CEODashboard({ userName }: { userName: string }) {
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {outlet.last_update ? 'Updated recently' : 'No updates today'}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: 'var(--orange)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      View details →
-                    </span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          router.push(`/manager/${outlet.id}`)
+                        }}
+                        className="btn-navy"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: 11,
+                          minHeight: 32,
+                        }}
+                      >
+                        📸 Upload
+                      </button>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: 'var(--orange)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        View details →
+                      </span>
+                    </div>
                   </div>
                 </div>
               )

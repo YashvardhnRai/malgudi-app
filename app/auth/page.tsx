@@ -40,7 +40,7 @@ export default function AuthPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#1E2260',
+      background: 'linear-gradient(180deg, #0F1240 0%, #1E2260 50%, #2B2F77 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -49,15 +49,41 @@ export default function AuthPage() {
       overflowX: 'hidden',
       width: '100%',
       boxSizing: 'border-box',
+      position: 'relative',
     }}>
-      {/* Background glow */}
+      {/* Animated orb — top right */}
+      <div style={{
+        position: 'fixed',
+        top: -100,
+        right: -100,
+        width: 400,
+        height: 400,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(240,90,40,0.12) 0%, transparent 70%)',
+        animation: 'float 6s ease-in-out infinite',
+        pointerEvents: 'none',
+      }} />
+      {/* Animated orb — bottom left */}
+      <div style={{
+        position: 'fixed',
+        bottom: -80,
+        left: -80,
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(240,90,40,0.08) 0%, transparent 70%)',
+        animation: 'float 8s ease-in-out infinite reverse',
+        pointerEvents: 'none',
+      }} />
+      {/* Grid pattern */}
       <div style={{
         position: 'fixed',
         inset: 0,
         backgroundImage: `
-          radial-gradient(circle at 20% 50%, rgba(240,90,40,0.08) 0%, transparent 50%),
-          radial-gradient(circle at 80% 20%, rgba(240,90,40,0.05) 0%, transparent 40%)
+          linear-gradient(rgba(240,90,40,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(240,90,40,0.04) 1px, transparent 1px)
         `,
+        backgroundSize: '40px 40px',
         pointerEvents: 'none',
       }} />
 
@@ -156,32 +182,15 @@ export default function AuthPage() {
           <button
             onClick={handleLogin}
             disabled={loading || !email.trim()}
+            className="btn-primary"
             style={{
               width: '100%',
               padding: '16px',
               background: loading ? 'rgba(240,90,40,0.5)' : '#F05A28',
-              color: '#fff',
-              fontWeight: 800,
               fontSize: 16,
-              borderRadius: 12,
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-display)',
               marginTop: 4,
               boxSizing: 'border-box',
-              boxShadow: '0 4px 24px rgba(240,90,40,0.4)',
-              transition: 'all 0.2s',
               letterSpacing: 0.5,
-            }}
-            onMouseEnter={e => {
-              if (!loading) {
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 8px 32px rgba(240,90,40,0.5)'
-              }
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'none'
-              e.currentTarget.style.boxShadow = '0 4px 24px rgba(240,90,40,0.4)'
             }}
           >
             {loading ? 'Sending...' : 'Send Magic Link →'}
@@ -230,16 +239,8 @@ export default function AuthPage() {
           </div>
           <button
             onClick={() => { setSent(false); setEmail('') }}
-            style={{
-              background: 'none',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: 8,
-              padding: '10px 24px',
-              color: 'rgba(255,255,255,0.4)',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontFamily: 'var(--font-body)',
-            }}
+            className="btn-secondary"
+            style={{ padding: '10px 24px', fontSize: 13 }}
           >
             Use different email
           </button>

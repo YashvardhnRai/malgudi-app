@@ -58,29 +58,15 @@ export default function OutletDetail({
         {/* Back button */}
         <button
           onClick={() => router.push("/")}
+          className="btn-secondary"
           style={{
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.15)",
-            borderRadius: 8,
             padding: "8px 16px",
-            color: "rgba(255,255,255,0.6)",
-            cursor: "pointer",
             fontSize: 13,
-            fontWeight: 500,
-            fontFamily: "var(--font-body)",
             marginBottom: 24,
             display: "flex",
             alignItems: "center",
             gap: 6,
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.color = "#F05A28";
-            e.currentTarget.style.borderColor = "rgba(240,90,40,0.4)";
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.6)";
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+            borderRadius: 8,
           }}
         >
           ← Back to Dashboard
@@ -566,16 +552,14 @@ export default function OutletDetail({
                       </div>
                       <a
                         href={`tel:${manager.phone}`}
+                        className="btn-primary"
                         style={{
-                          background: "var(--navy)",
-                          color: "#fff",
-                          padding: "12px 18px",
+                          padding: "10px 18px",
                           minHeight: 44,
                           borderRadius: 8,
                           textDecoration: "none",
                           fontSize: 12,
-                          fontWeight: 700,
-                          display: "flex",
+                          display: "inline-flex",
                           alignItems: "center",
                           gap: 6,
                         }}
