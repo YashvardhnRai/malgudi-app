@@ -1,0 +1,22 @@
+{
+  "name": "Malgudi App",
+  "short_name": "Malgudi",
+  "description": "Restaurant Operations Dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2B2F77",
+  "theme_color": "#2B2F77",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

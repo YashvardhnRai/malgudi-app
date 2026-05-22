@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "PowerShell(taskkill *)",
+      "Bash(node -e \"const p = require\\('./node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); const deps = {...p.dependencies, ...p.devDependencies}; Object.keys\\(deps\\).filter\\(k=>k.includes\\('supabase'\\)\\).forEach\\(k=>console.log\\(k, deps[k]\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@supabase/ssr/package.json'\\).version\\)\")",
+      "Bash(Remove-Item *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(npx next *)",
+      "Bash(Start-Sleep -Seconds 12)",
+      "Bash(Get-Content \"C:\\\\Users\\\\YASHVA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Yashvardhan-Rai-OneDrive-Desktop-Malgudi-App-Malgudi-malgudi-app\\\\0ec3a7f9-a40d-4e1e-97e7-4df1932c9899\\\\tasks\\\\bdsyzk4or.output\" -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/outlet/test-id)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/manager/test-id)",
+      "Bash(node *)"
+    ]
+  }
+}
