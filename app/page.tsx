@@ -23,6 +23,8 @@ export default function LandingPage() {
       background: "#0F1240",
       color: "#fff",
       overflowX: "hidden",
+      width: "100%",
+      maxWidth: "100vw",
     }}>
 
       {/* NAV */}
@@ -131,6 +133,8 @@ export default function LandingPage() {
           position: "relative",
           background: "linear-gradient(180deg, #0F1240 0%, #1E2260 50%, #2B2F77 100%)",
           overflow: "hidden",
+          width: "100%",
+          boxSizing: "border-box",
         }}
       >
         {/* Animated background orbs */}
@@ -298,6 +302,8 @@ export default function LandingPage() {
             borderTop: "1px solid rgba(255,255,255,0.08)",
             animation: "fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.6s both",
             position: "relative",
+            flexWrap: "wrap",
+            justifyContent: "center",
           }}
         >
           {[
@@ -368,7 +374,7 @@ export default function LandingPage() {
           style={{ gridTemplateRows: "auto auto" }}
         >
           {/* Big card — CEO Dashboard */}
-          <div style={{
+          <div className="bento-big-left" style={{
             gridColumn: "1 / 3",
             background: "#2B2F77",
             borderRadius: 24,
@@ -474,7 +480,7 @@ export default function LandingPage() {
           </div>
 
           {/* Sales & Compliance — big */}
-          <div style={{
+          <div className="bento-big-right" style={{
             gridColumn: "2 / 4",
             background: "linear-gradient(135deg, #1E2260, #2B2F77)",
             borderRadius: 24,

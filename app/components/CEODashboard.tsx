@@ -123,7 +123,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
         style={{
           background:
             'linear-gradient(135deg, #1E2260 0%, #2B2F77 60%, #363B8F 100%)',
-          padding: mobile ? '32px 20px 80px' : '56px 48px 96px',
+          padding: 'clamp(32px, 6vw, 56px) clamp(16px, 4vw, 48px) clamp(72px, 12vw, 96px)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -251,19 +251,14 @@ export default function CEODashboard({ userName }: { userName: string }) {
       <div
         className="dashboard-padding"
         style={{
-          padding: mobile ? '0 20px' : '0 48px',
+          padding: '0 clamp(16px, 4vw, 48px)',
           marginTop: -48,
           marginBottom: 48,
           position: 'relative',
           zIndex: 10,
         }}
       >
-        <div
-          className="stats-grid"
-          style={{
-            gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-          }}
-        >
+        <div className="stats-grid">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div
@@ -372,7 +367,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
       </div>
 
       {/* ── MAIN CONTENT ─────────────────────── */}
-      <div style={{ padding: mobile ? '0 20px 64px' : '0 48px 64px' }}>
+      <div style={{ padding: '0 clamp(16px, 4vw, 48px) 64px' }}>
 
         {/* Alerts */}
         {data && data.alerts.length > 0 && (
@@ -484,11 +479,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
           <div
             className="outlets-grid"
             style={{
-              gridTemplateColumns: mobile
-                ? '1fr'
-                : data.outlets.length === 1
-                ? '360px'
-                : 'repeat(auto-fill, minmax(320px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             }}
           >
             {data.outlets.map((outlet, i) => {

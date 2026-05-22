@@ -58,7 +58,7 @@ export default function NavHeader({ userName }: { userName: string }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: mobile ? "0 16px" : "0 48px",
+        padding: "0 clamp(16px, 4vw, 48px)",
         background: scrolled ? "rgba(43,47,119,0.95)" : "#2B2F77",
         backdropFilter: scrolled ? "blur(20px)" : "none",
         borderBottom: `1px solid ${
@@ -102,132 +102,128 @@ export default function NavHeader({ userName }: { userName: string }) {
       </div>
 
       {/* Right side */}
-      <div style={{ display: "flex", alignItems: "center", gap: mobile ? 12 : 24 }}>
-        {/* Live IST clock — hidden on mobile */}
-        {!mobile && (
-          <div
-            style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.35)",
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: 1,
-            }}
-          >
-            {time} IST
-          </div>
-        )}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Live IST clock — hidden on mobile via CSS */}
+        <div
+          className="desktop-only"
+          style={{
+            fontSize: 12,
+            color: "rgba(255,255,255,0.35)",
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: 1,
+          }}
+        >
+          {time} IST
+        </div>
 
-        {/* Nav links — hide Photos on mobile */}
-        {(["Complaints", "Photos"] as const)
-          .filter((link) => !(mobile && link === "Photos"))
-          .map((link) => (
-            <Link
-              key={link}
-              href={`/${link.toLowerCase()}`}
-              style={{
-                fontSize: mobile ? 12 : 13,
-                fontWeight: 500,
-                color: "rgba(255,255,255,0.55)",
-                textDecoration: "none",
-                letterSpacing: 0.3,
-                transition: "color 0.2s var(--ease-smooth)",
-                display: mobile ? "none" : undefined,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.color = "#F05A28";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.color =
-                  "rgba(255,255,255,0.55)";
-              }}
-            >
-              {link}
-            </Link>
-          ))}
-
-        {/* Notification bell — hidden on mobile */}
-        {!mobile && (
-          <button
+        {/* Nav links — hidden on mobile via CSS */}
+        {(["Complaints", "Photos"] as const).map((link) => (
+          <Link
+            key={link}
+            className="desktop-only"
+            href={`/${link.toLowerCase()}`}
             style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(255,255,255,0.5)",
-              fontSize: 16,
-              position: "relative",
-              padding: 6,
-              borderRadius: 8,
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "rgba(255,255,255,0.55)",
+              textDecoration: "none",
+              letterSpacing: 0.3,
+              transition: "color 0.2s var(--ease-smooth)",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background =
-                "rgba(240,90,40,0.1)";
               (e.currentTarget as HTMLElement).style.color = "#F05A28";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "none";
               (e.currentTarget as HTMLElement).style.color =
-                "rgba(255,255,255,0.5)";
+                "rgba(255,255,255,0.55)";
             }}
           >
-            🔔
-            <span
-              style={{
-                position: "absolute",
-                top: 2,
-                right: 2,
-                width: 14,
-                height: 14,
-                background: "#F05A28",
-                borderRadius: "50%",
-                fontSize: 8,
-                fontWeight: 700,
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                animation: "pulse-orange 2s infinite",
-              }}
-            >
-              1
-            </span>
-          </button>
-        )}
+            {link}
+          </Link>
+        ))}
 
-        {/* Avatar — hidden on mobile */}
-        {!mobile && (
-          <div
+        {/* Notification bell — visible on mobile */}
+        <button
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "rgba(255,255,255,0.5)",
+            fontSize: 16,
+            position: "relative",
+            padding: 6,
+            borderRadius: 8,
+            transition: "all 0.2s",
+            display: "flex",
+            alignItems: "center",
+            minWidth: 32,
+            minHeight: 44,
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              "rgba(240,90,40,0.1)";
+            (e.currentTarget as HTMLElement).style.color = "#F05A28";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "none";
+            (e.currentTarget as HTMLElement).style.color =
+              "rgba(255,255,255,0.5)";
+          }}
+        >
+          🔔
+          <span
             style={{
-              width: 34,
-              height: 34,
+              position: "absolute",
+              top: 2,
+              right: 2,
+              width: 14,
+              height: 14,
+              background: "#F05A28",
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #F05A28, #F47350)",
+              fontSize: 8,
+              fontWeight: 700,
+              color: "#fff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 13,
-              fontWeight: 800,
-              color: "#fff",
-              cursor: "pointer",
-              boxShadow: "0 0 0 2px rgba(240,90,40,0.3)",
-              transition: "box-shadow 0.2s var(--ease-smooth)",
-              fontFamily: "var(--font-display)",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.boxShadow =
-                "0 0 0 3px rgba(240,90,40,0.5)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.boxShadow =
-                "0 0 0 2px rgba(240,90,40,0.3)";
+              animation: "pulse-orange 2s infinite",
             }}
           >
-            {userName?.[0]?.toUpperCase() || "Y"}
-          </div>
-        )}
+            1
+          </span>
+        </button>
+
+        {/* Avatar — visible on mobile */}
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #F05A28, #F47350)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 13,
+            fontWeight: 800,
+            color: "#fff",
+            cursor: "pointer",
+            boxShadow: "0 0 0 2px rgba(240,90,40,0.3)",
+            transition: "box-shadow 0.2s var(--ease-smooth)",
+            fontFamily: "var(--font-display)",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.boxShadow =
+              "0 0 0 3px rgba(240,90,40,0.5)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.boxShadow =
+              "0 0 0 2px rgba(240,90,40,0.3)";
+          }}
+        >
+          {userName?.[0]?.toUpperCase() || "Y"}
+        </div>
 
         {/* Sign out */}
         <button

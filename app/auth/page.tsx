@@ -40,283 +40,211 @@ export default function AuthPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#2B2F77',
+      background: '#1E2260',
       display: 'flex',
-      position: 'relative',
-      overflow: 'hidden',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px 24px',
+      overflowX: 'hidden',
+      width: '100%',
+      boxSizing: 'border-box',
     }}>
-      {/* Background radial glows */}
+      {/* Background glow */}
       <div style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
-        backgroundImage: `radial-gradient(circle at 20% 50%, rgba(240,90,40,0.08) 0%, transparent 50%),
-          radial-gradient(circle at 80% 20%, rgba(240,90,40,0.05) 0%, transparent 40%)`,
+        backgroundImage: `
+          radial-gradient(circle at 20% 50%, rgba(240,90,40,0.08) 0%, transparent 50%),
+          radial-gradient(circle at 80% 20%, rgba(240,90,40,0.05) 0%, transparent 40%)
+        `,
         pointerEvents: 'none',
       }} />
 
-      {/* Left panel — brand */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '80px',
-        position: 'relative',
-        background: 'linear-gradient(135deg, #1E2260, #2B2F77)',
-        borderRight: '1px solid rgba(240,90,40,0.1)',
-      }}>
-        <div style={{ marginBottom: 48 }}>
-          <div style={{ marginBottom: 16 }}>
-            <MalgudiLogo size={100} color="#F05A28" />
-          </div>
-          <div style={{
-            fontSize: 32,
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            color: '#F05A28',
-            letterSpacing: 8,
-            marginBottom: 4,
-          }}>
-            MALGUDI
-          </div>
-          <div style={{
-            fontSize: 16,
-            color: 'rgba(240,90,40,0.5)',
-            letterSpacing: 4,
-            fontFamily: 'var(--font-body)',
-          }}>
-            मालगुडी
-          </div>
-        </div>
-
-        <div style={{ maxWidth: 360 }}>
-          <div style={{
-            fontSize: 24,
-            fontFamily: 'var(--font-display)',
-            fontWeight: 700,
-            color: '#fff',
-            marginBottom: 12,
-            lineHeight: 1.4,
-          }}>
-            Operations Dashboard
-          </div>
-          <div style={{
-            fontSize: 15,
-            color: 'rgba(255,255,255,0.6)',
-            lineHeight: 1.8,
-          }}>
-            Monitor all outlets, track food quality,
-            manage complaints and keep every
-            Malgudi experience consistent.
-          </div>
-        </div>
-
-        <div style={{
-          marginTop: 'auto',
-          paddingTop: 48,
-          borderTop: '1px solid rgba(240,90,40,0.1)',
-        }}>
-          <div style={{
-            fontSize: 13,
-            color: 'rgba(255,255,255,0.3)',
-            fontStyle: 'italic',
-            fontFamily: 'var(--font-display)',
-          }}>
-            &ldquo;Consistency is what transforms average into excellence.&rdquo;
-          </div>
-        </div>
+      {/* Logo */}
+      <div style={{ marginBottom: 12, position: 'relative' }}>
+        <MalgudiLogo size={64} color="#F05A28" />
       </div>
 
-      {/* Right panel — login form */}
+      {/* Brand */}
       <div style={{
-        width: 480,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '80px 60px',
+        fontSize: 28,
+        fontFamily: 'var(--font-display)',
+        fontWeight: 900,
+        color: '#F05A28',
+        letterSpacing: 6,
+        marginBottom: 4,
         position: 'relative',
-        background: '#1E2260',
       }}>
-        <div style={{ marginBottom: 40 }}>
-          <div style={{
+        MALGUDI
+      </div>
+      <div style={{
+        fontSize: 13,
+        color: 'rgba(240,90,40,0.5)',
+        letterSpacing: 3,
+        marginBottom: 6,
+        position: 'relative',
+      }}>
+        मालगुडी
+      </div>
+      <div style={{
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.4)',
+        marginBottom: 40,
+        letterSpacing: 0.5,
+        position: 'relative',
+      }}>
+        Operations Dashboard
+      </div>
+
+      {/* Form */}
+      {!sent ? (
+        <div style={{
+          width: '100%',
+          maxWidth: 360,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          position: 'relative',
+        }}>
+          <label style={{
             fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            color: 'rgba(240,90,40,0.6)',
-            marginBottom: 12,
+            fontWeight: 700,
+            color: 'rgba(255,255,255,0.4)',
+            letterSpacing: 2,
+            textTransform: 'uppercase' as const,
           }}>
-            Welcome back
-          </div>
+            Email Address
+          </label>
+          <input
+            suppressHydrationWarning
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            placeholder="you@example.com"
+            style={{
+              width: '100%',
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(240,90,40,0.3)',
+              borderRadius: 12,
+              padding: '14px 18px',
+              color: '#fff',
+              fontSize: 16,
+              outline: 'none',
+              fontFamily: 'var(--font-body)',
+              boxSizing: 'border-box',
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={e => { e.target.style.borderColor = 'rgba(240,90,40,0.6)' }}
+            onBlur={e => { e.target.style.borderColor = 'rgba(240,90,40,0.3)' }}
+          />
+
+          {error && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 10,
+              color: '#FCA5A5',
+              fontSize: 13,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleLogin}
+            disabled={loading || !email.trim()}
+            style={{
+              width: '100%',
+              padding: '16px',
+              background: loading ? 'rgba(240,90,40,0.5)' : '#F05A28',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 16,
+              borderRadius: 12,
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-display)',
+              marginTop: 4,
+              boxSizing: 'border-box',
+              boxShadow: '0 4px 24px rgba(240,90,40,0.4)',
+              transition: 'all 0.2s',
+              letterSpacing: 0.5,
+            }}
+            onMouseEnter={e => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 8px 32px rgba(240,90,40,0.5)'
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'none'
+              e.currentTarget.style.boxShadow = '0 4px 24px rgba(240,90,40,0.4)'
+            }}
+          >
+            {loading ? 'Sending...' : 'Send Magic Link →'}
+          </button>
+
           <div style={{
-            fontSize: 28,
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.25)',
+            textAlign: 'center' as const,
+            lineHeight: 1.7,
+            marginTop: 8,
+          }}>
+            Access by invitation only.
+            <br />
+            Contact your administrator for access.
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          width: '100%',
+          maxWidth: 360,
+          textAlign: 'center' as const,
+          position: 'relative',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <div style={{
+            fontSize: 22,
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
             color: '#fff',
             marginBottom: 8,
           }}>
-            Sign in to continue
+            Check your inbox
           </div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>
-            We&apos;ll send a magic link to your email
+          <div style={{
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.5)',
+            lineHeight: 1.8,
+            marginBottom: 24,
+          }}>
+            Magic link sent to
+            <br />
+            <span style={{ color: '#F05A28' }}>{email}</span>
+            <br />
+            Click it to sign in instantly.
           </div>
+          <button
+            onClick={() => { setSent(false); setEmail('') }}
+            style={{
+              background: 'none',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 8,
+              padding: '10px 24px',
+              color: 'rgba(255,255,255,0.4)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontFamily: 'var(--font-body)',
+            }}
+          >
+            Use different email
+          </button>
         </div>
-
-        {!sent ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'rgba(255,255,255,0.5)',
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-                marginBottom: 8,
-              }}>
-                Email address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="you@example.com"
-                style={{
-                  width: '100%',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(240,90,40,0.25)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '14px 18px',
-                  color: '#fff',
-                  fontSize: 15,
-                  outline: 'none',
-                  fontFamily: 'var(--font-body)',
-                  transition: 'border-color 0.2s',
-                  boxSizing: 'border-box',
-                }}
-                onFocus={e => { e.target.style.borderColor = 'rgba(240,90,40,0.6)' }}
-                onBlur={e => { e.target.style.borderColor = 'rgba(240,90,40,0.25)' }}
-              />
-            </div>
-
-            {error && (
-              <div style={{
-                padding: '10px 14px',
-                background: 'rgba(239,68,68,0.1)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: 'var(--radius-sm)',
-                color: '#FCA5A5',
-                fontSize: 13,
-              }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              onClick={handleLogin}
-              disabled={loading || !email.trim()}
-              style={{
-                width: '100%',
-                padding: '15px',
-                background: loading ? 'rgba(240,90,40,0.5)' : '#F05A28',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 15,
-                borderRadius: 'var(--radius-md)',
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: 'var(--font-display)',
-                letterSpacing: 0.5,
-                transition: 'all 0.2s',
-                marginTop: 4,
-              }}
-              onMouseEnter={e => {
-                if (!loading) {
-                  const el = e.currentTarget
-                  el.style.background = '#F47350'
-                  el.style.transform = 'translateY(-1px)'
-                  el.style.boxShadow = '0 4px 20px rgba(240,90,40,0.4)'
-                }
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget
-                el.style.background = loading ? 'rgba(240,90,40,0.5)' : '#F05A28'
-                el.style.transform = 'none'
-                el.style.boxShadow = 'none'
-              }}
-            >
-              {loading ? 'Sending link...' : 'Send Magic Link →'}
-            </button>
-
-            <div style={{
-              fontSize: 12,
-              color: 'rgba(255,255,255,0.25)',
-              textAlign: 'center',
-              lineHeight: 1.7,
-              marginTop: 8,
-            }}>
-              Access by invitation only.
-              <br />
-              Contact your administrator for access.
-            </div>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center' }} className="animate-fade-up">
-            <div style={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              background: 'rgba(34,197,94,0.15)',
-              border: '1px solid rgba(34,197,94,0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 20px',
-              fontSize: 28,
-              color: '#4ADE80',
-            }}>
-              ✓
-            </div>
-            <div style={{
-              fontSize: 22,
-              fontFamily: 'var(--font-display)',
-              fontWeight: 700,
-              color: '#fff',
-              marginBottom: 10,
-            }}>
-              Check your inbox
-            </div>
-            <div style={{
-              fontSize: 14,
-              color: 'rgba(255,255,255,0.5)',
-              lineHeight: 1.8,
-              marginBottom: 28,
-            }}>
-              We sent a magic link to
-              <br />
-              <span style={{ color: '#F05A28' }}>{email}</span>
-              <br />
-              Click it to sign in instantly.
-            </div>
-            <button
-              onClick={() => { setSent(false); setEmail('') }}
-              style={{
-                background: 'none',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '10px 24px',
-                color: 'rgba(255,255,255,0.4)',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontFamily: 'var(--font-body)',
-              }}
-            >
-              Use different email
-            </button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

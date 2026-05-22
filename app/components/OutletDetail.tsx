@@ -50,7 +50,7 @@ export default function OutletDetail({
         className="outlet-header-padding"
         style={{
           background: "linear-gradient(135deg, #1E2260, #2B2F77)",
-          padding: mobile ? "20px 16px 0" : "40px 48px 0",
+          padding: "clamp(20px, 4vw, 40px) clamp(16px, 4vw, 48px) 0",
           position: "relative",
           overflow: "hidden",
         }}
@@ -250,14 +250,11 @@ export default function OutletDetail({
       </div>
 
       {/* Tab Content */}
-      <div className="outlet-content-padding" style={{ padding: mobile ? "20px 16px" : "40px 48px" }}>
+      <div className="outlet-content-padding" style={{ padding: "clamp(20px, 4vw, 40px) clamp(16px, 4vw, 48px)" }}>
 
         {/* OVERVIEW TAB */}
         {activeTab === "overview" && (
-          <div
-            className="overview-grid"
-            style={{ gridTemplateColumns: mobile ? "1fr" : "1fr 1fr" }}
-          >
+          <div className="overview-grid">
             {/* Checklist status */}
             <div style={{
               background: "#fff",
@@ -410,7 +407,7 @@ export default function OutletDetail({
             {photos.length > 0 ? (
               <div style={{
                 display: "grid",
-                gridTemplateColumns: mobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
                 gap: 12,
               }}>
                 {photos.map((photo: any) => (

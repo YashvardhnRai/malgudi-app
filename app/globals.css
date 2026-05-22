@@ -53,11 +53,18 @@
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+
 *, *::before, *::after {
-  box-sizing: border-box;
+  box-sizing: border-box !important;
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  max-width: 100%;
 }
 
 html {
@@ -230,13 +237,16 @@ input:focus {
 .landing-section { padding: 120px 64px; }
 .landing-footer  { padding: 32px 64px; }
 .landing-stats-bar { display: flex; gap: 48px; }
+/* Mobile-first bento grid: 1-col by default, 3-col on desktop */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 16px;
   max-width: 1100px;
   margin: 0 auto;
 }
+/* All children use auto column-span on mobile */
+.bento-grid > * { grid-column: auto !important; }
 .how-it-works-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -248,17 +258,26 @@ input:focus {
 /* CEO Dashboard */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* auto-fit: wraps naturally — 2 cols on phone, 4 on desktop */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
 }
 .outlets-grid  { display: grid; gap: 20px; margin-bottom: 48px; }
-.hero-padding  { } /* override target only */
-.hero-title    { } /* override target only */
-.dashboard-padding { } /* override target only */
+.hero-padding  { }
+.hero-title    { }
+.dashboard-padding { }
 
 /* OutletDetail */
 .tab-label { display: inline; }
-.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+
+/* ── Desktop (≥ 768px) — restore bento spans ── */
+@media (min-width: 768px) {
+  .bento-grid        { grid-template-columns: repeat(3, 1fr) !important; }
+  .bento-big-left    { grid-column: 1 / 3 !important; }
+  .bento-big-right   { grid-column: 2 / 4 !important; }
+  .how-it-works-grid { grid-template-columns: 1fr 1fr !important; }
+}
 
 /* ── Mobile (≤ 768px) ───────────────────────── */
 @media (max-width: 768px) {
@@ -282,14 +301,10 @@ input:focus {
     gap: 20px !important;
     margin-top: 48px !important;
   }
-  /* Features bento → single column */
-  .bento-grid            { grid-template-columns: 1fr !important; }
-  .bento-grid > *        { grid-column: auto !important; }
   /* How-it-works → single column */
-  .how-it-works-grid     { grid-template-columns: 1fr !important; gap: 40px !important; }
+  .how-it-works-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
 
   /* CEO Dashboard */
-  .stats-grid        { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
   .outlets-grid      { grid-template-columns: 1fr !important; }
   .hero-padding      { padding: 32px 16px 72px !important; }
   .hero-title        { font-size: 28px !important; }
@@ -300,5 +315,4 @@ input:focus {
   .outlet-header-padding  { padding: 24px 20px 0 !important; }
   .outlet-content-padding { padding: 24px 20px !important; }
   .outlet-quick-stats     { display: none !important; }
-  .overview-grid          { grid-template-columns: 1fr !important; }
 }
