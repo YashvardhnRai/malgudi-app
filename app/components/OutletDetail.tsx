@@ -46,12 +46,15 @@ export default function OutletDetail({
       <NavHeader userName="Yash" />
 
       {/* Header */}
-      <div style={{
-        background: "linear-gradient(135deg, #1E2260, #2B2F77)",
-        padding: mobile ? "20px 16px 0" : "40px 48px 0",
-        position: "relative",
-        overflow: "hidden",
-      }}>
+      <div
+        className="outlet-header-padding"
+        style={{
+          background: "linear-gradient(135deg, #1E2260, #2B2F77)",
+          padding: mobile ? "20px 16px 0" : "40px 48px 0",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         {/* Back button */}
         <button
           onClick={() => router.push("/")}
@@ -143,7 +146,7 @@ export default function OutletDetail({
           </div>
 
           {/* Quick stats */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="outlet-quick-stats" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {[
               {
                 label: "Sales",
@@ -212,7 +215,7 @@ export default function OutletDetail({
                 border: "none",
                 background: "none",
                 color: activeTab === tab.id ? "#F05A28" : "rgba(255,255,255,0.4)",
-                fontSize: mobile ? 18 : 13,
+                fontSize: 18,
                 fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "var(--font-body)",
@@ -227,7 +230,7 @@ export default function OutletDetail({
                 flexShrink: 0,
               }}
             >
-              {mobile ? tab.icon : <>{tab.icon} {tab.label}</>}
+              {tab.icon}<span className="tab-label"> {tab.label}</span>
               {tab.id === "complaints" && openComplaints > 0 && (
                 <span style={{
                   background: "#EF4444",
@@ -247,15 +250,14 @@ export default function OutletDetail({
       </div>
 
       {/* Tab Content */}
-      <div style={{ padding: mobile ? "20px 16px" : "40px 48px" }}>
+      <div className="outlet-content-padding" style={{ padding: mobile ? "20px 16px" : "40px 48px" }}>
 
         {/* OVERVIEW TAB */}
         {activeTab === "overview" && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
-            gap: 20,
-          }}>
+          <div
+            className="overview-grid"
+            style={{ gridTemplateColumns: mobile ? "1fr" : "1fr 1fr" }}
+          >
             {/* Checklist status */}
             <div style={{
               background: "#fff",

@@ -26,23 +26,26 @@ export default function LandingPage() {
     }}>
 
       {/* NAV */}
-      <nav style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1000,
-        height: 64,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 64px",
-        background: scrollY > 20 ? "rgba(15,18,64,0.95)" : "transparent",
-        backdropFilter: scrollY > 20 ? "blur(20px)" : "none",
-        borderBottom: scrollY > 20 ? "1px solid rgba(240,90,40,0.15)" : "none",
-        transition: "all 0.4s ease",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <nav
+        className="landing-nav"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: scrollY > 20 ? "rgba(15,18,64,0.95)" : "transparent",
+          backdropFilter: scrollY > 20 ? "blur(20px)" : "none",
+          borderBottom: scrollY > 20 ? "1px solid rgba(240,90,40,0.15)" : "none",
+          transition: "all 0.4s ease",
+        }}
+      >
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <MalgudiLogo size={32} color="#F05A28" />
           <div>
             <div style={{
@@ -60,24 +63,30 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          {["Features", "How it works", "Contact"].map(item => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase().replace(" ", "-")}`}
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.6)",
-                textDecoration: "none",
-                fontWeight: 500,
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#F05A28"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.6)"; }}
-            >
-              {item}
-            </a>
-          ))}
+        {/* Right side */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Nav links — hidden on mobile */}
+          <div className="desktop-only" style={{ alignItems: "center", gap: 32 }}>
+            {["Features", "How it works", "Contact"].map(item => (
+              <a
+                key={item}
+                href={`#${item.toLowerCase().replace(" ", "-")}`}
+                style={{
+                  fontSize: 13,
+                  color: "rgba(255,255,255,0.6)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  transition: "color 0.2s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#F05A28"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.6)"; }}
+              >
+                {item}
+              </a>
+            ))}
+          </div>
+
+          {/* Login button — always visible */}
           <button
             onClick={() => router.push("/auth")}
             style={{
@@ -86,12 +95,14 @@ export default function LandingPage() {
               border: "none",
               borderRadius: 10,
               padding: "9px 22px",
+              minHeight: 44,
               fontSize: 13,
               fontWeight: 700,
               cursor: "pointer",
               fontFamily: "var(--font-body)",
               transition: "all 0.2s",
               boxShadow: "0 0 20px rgba(240,90,40,0.3)",
+              flexShrink: 0,
             }}
             onMouseEnter={e => {
               e.currentTarget.style.transform = "translateY(-1px)";
@@ -108,18 +119,20 @@ export default function LandingPage() {
       </nav>
 
       {/* HERO */}
-      <section style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column" as const,
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center" as const,
-        padding: "120px 64px 80px",
-        position: "relative",
-        background: "linear-gradient(180deg, #0F1240 0%, #1E2260 50%, #2B2F77 100%)",
-        overflow: "hidden",
-      }}>
+      <section
+        className="landing-hero"
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column" as const,
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center" as const,
+          position: "relative",
+          background: "linear-gradient(180deg, #0F1240 0%, #1E2260 50%, #2B2F77 100%)",
+          overflow: "hidden",
+        }}
+      >
         {/* Animated background orbs */}
         <div style={{
           position: "absolute",
@@ -277,15 +290,16 @@ export default function LandingPage() {
         </div>
 
         {/* Stats bar */}
-        <div style={{
-          display: "flex",
-          gap: 48,
-          marginTop: 80,
-          paddingTop: 48,
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-          animation: "fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.6s both",
-          position: "relative",
-        }}>
+        <div
+          className="landing-stats-bar"
+          style={{
+            marginTop: 80,
+            paddingTop: 48,
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+            animation: "fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.6s both",
+            position: "relative",
+          }}
+        >
           {[
             { value: "13", label: "Outlets monitored" },
             { value: "3",  label: "Cities covered" },
@@ -312,7 +326,7 @@ export default function LandingPage() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "120px 64px", background: "#F5F4F0" }}>
+      <section id="features" className="landing-section" style={{ background: "#F5F4F0" }}>
         <div style={{ textAlign: "center" as const, marginBottom: 64 }}>
           <div style={{
             fontSize: 11,
@@ -349,14 +363,10 @@ export default function LandingPage() {
         </div>
 
         {/* Bento grid */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridTemplateRows: "auto auto",
-          gap: 16,
-          maxWidth: 1100,
-          margin: "0 auto",
-        }}>
+        <div
+          className="bento-grid"
+          style={{ gridTemplateRows: "auto auto" }}
+        >
           {/* Big card — CEO Dashboard */}
           <div style={{
             gridColumn: "1 / 3",
@@ -508,7 +518,7 @@ export default function LandingPage() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" style={{ padding: "120px 64px", background: "#2B2F77" }}>
+      <section id="how-it-works" className="landing-section" style={{ background: "#2B2F77" }}>
         <div style={{ textAlign: "center" as const, marginBottom: 64 }}>
           <div style={{
             fontSize: 11,
@@ -531,13 +541,7 @@ export default function LandingPage() {
           </h2>
         </div>
 
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 48,
-          maxWidth: 900,
-          margin: "0 auto",
-        }}>
+        <div className="how-it-works-grid">
           {/* CEO flow */}
           <div>
             <div style={{
@@ -646,13 +650,15 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section style={{
-        padding: "120px 64px",
-        background: "#0F1240",
-        textAlign: "center" as const,
-        position: "relative",
-        overflow: "hidden",
-      }}>
+      <section
+        className="landing-section"
+        style={{
+          background: "#0F1240",
+          textAlign: "center" as const,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         <div style={{
           position: "absolute",
           inset: 0,
@@ -718,14 +724,16 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{
-        padding: "32px 64px",
-        background: "#0A0D33",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        borderTop: "1px solid rgba(240,90,40,0.1)",
-      }}>
+      <footer
+        className="landing-footer"
+        style={{
+          background: "#0A0D33",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTop: "1px solid rgba(240,90,40,0.1)",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <MalgudiLogo size={24} color="#F05A28" />
           <span style={{

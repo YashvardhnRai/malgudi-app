@@ -119,6 +119,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
 
       {/* ── HERO ─────────────────────────────── */}
       <div
+        className="hero-padding"
         style={{
           background:
             'linear-gradient(135deg, #1E2260 0%, #2B2F77 60%, #363B8F 100%)',
@@ -188,6 +189,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
 
         {/* Greeting */}
         <h1
+          className="hero-title"
           style={{
             fontSize: 'clamp(28px, 6vw, 48px)',
             fontFamily: 'var(--font-display)',
@@ -247,6 +249,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
 
       {/* ── FLOATING STAT CARDS ───────────────── */}
       <div
+        className="dashboard-padding"
         style={{
           padding: mobile ? '0 20px' : '0 48px',
           marginTop: -48,
@@ -256,10 +259,9 @@ export default function CEODashboard({ userName }: { userName: string }) {
         }}
       >
         <div
+          className="stats-grid"
           style={{
-            display: 'grid',
             gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-            gap: 16,
           }}
         >
           {loading
@@ -480,15 +482,13 @@ export default function CEODashboard({ userName }: { userName: string }) {
           </div>
         ) : data && data.outlets.length > 0 ? (
           <div
+            className="outlets-grid"
             style={{
-              display: 'grid',
               gridTemplateColumns: mobile
                 ? '1fr'
                 : data.outlets.length === 1
                 ? '360px'
                 : 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: 20,
-              marginBottom: 48,
             }}
           >
             {data.outlets.map((outlet, i) => {
