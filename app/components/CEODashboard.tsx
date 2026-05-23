@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import NavHeader from '@/app/components/NavHeader'
+import PhotoUpload from '@/app/components/PhotoUpload'
 import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase'
 import type { DashboardSummary, OutletWithStatus } from '@/lib/types'
 
@@ -57,6 +58,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
+  const [reviewOutletId, setReviewOutletId] = useState<string | null>(null)
   const { text: greeting, emoji, date } = getGreeting()
 
   useEffect(() => {
@@ -407,30 +409,65 @@ export default function CEODashboard({ userName }: { userName: string }) {
               {data.alerts.length} alert{data.alerts.length > 1 ? 's' : ''} require
               your attention
             </div>
-            {data.alerts.map((a, i) => (
-              <div
-                key={a.id ?? i}
-                style={{
-                  fontSize: 13,
-                  color: '#DC2626',
-                  marginTop: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <div
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: '50%',
-                    background: '#DC2626',
-                    flexShrink: 0,
-                  }}
-                />
-                {a.message}
-              </div>
-            ))}
+            {data.alerts.map((a, i) => {
+              const outletForAlert = a.outlet_id
+                ? data.outlets.find((o) => o.id === a.outlet_id)
+                : null
+              return (
+                <div key={a.id ?? i} style={{ marginTop: 10 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: '#DC2626',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 4,
+                        height: 4,
+                        borderRadius: '50%',
+                        background: '#DC2626',
+                        flexShrink: 0,
+                        marginTop: 6,
+                      }}
+                    />
+                    <span style={{ flex: 1 }}>
+                      {a.alert_type === 'AI_PHOTO_REVIEW' && '🤖 AI Review · '}
+                      {outletForAlert && (
+                        <strong>{outletForAlert.name}: </strong>
+                      )}
+                      {a.message}
+                    </span>
+                    {a.alert_type === 'AI_PHOTO_REVIEW' && outletForAlert?.manager_phone && (
+                      <a
+                        href={`tel:${outletForAlert.manager_phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '6px 12px',
+                          minHeight: 36,
+                          background: '#F05A28',
+                          borderRadius: 100,
+                          color: '#fff',
+                          textDecoration: 'none',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        📞 Call Manager
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -687,6 +724,22 @@ export default function CEODashboard({ userName }: { userName: string }) {
                       >
                         📸 Upload
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setReviewOutletId(
+                            reviewOutletId === outlet.id ? null : outlet.id
+                          )
+                        }}
+                        className="btn-navy"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: 11,
+                          minHeight: 32,
+                        }}
+                      >
+                        🔍 AI Review
+                      </button>
                       <span
                         style={{
                           fontSize: 12,
@@ -701,6 +754,20 @@ export default function CEODashboard({ userName }: { userName: string }) {
                       </span>
                     </div>
                   </div>
+
+                  {reviewOutletId === outlet.id && (
+                    <div
+                      style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <PhotoUpload
+                        outletId={outlet.id}
+                        outletName={outlet.name}
+                        managerName={outlet.manager_name}
+                        managerPhone={outlet.manager_phone}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import NavHeader from "./NavHeader";
+import PhotoUpload from "./PhotoUpload";
 
 interface Props {
   outlet: any;
@@ -387,7 +388,13 @@ export default function OutletDetail({
         {/* PHOTOS TAB */}
         {activeTab === "photos" && (
           <div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>
+            <PhotoUpload
+              outletId={outlet.id}
+              outletName={outlet.name}
+              managerName={manager?.name ?? outlet.manager_name}
+              managerPhone={manager?.phone ?? outlet.manager_phone}
+            />
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20, marginTop: 24 }}>
               {photos.length} photos uploaded today
             </div>
             {photos.length > 0 ? (
