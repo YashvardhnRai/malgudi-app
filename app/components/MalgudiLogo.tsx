@@ -1,37 +1,37 @@
 "use client";
 
+import Image from "next/image";
+
 export default function MalgudiLogo({
   size = 44,
-  color = "#F05A28",
-  bgColor = "transparent"
+  color,
+  bgColor,
 }: {
   size?: number;
   color?: string;
   bgColor?: string;
 }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 28800 28800"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: "block" }}
+    <div
+      style={{
+        width: size,
+        height: size,
+        position: "relative",
+        display: "inline-block",
+        flexShrink: 0,
+      }}
     >
-      {bgColor !== "transparent" && (
-        <rect width="28800" height="28800"
-          fill={bgColor} rx="2000"/>
-      )}
-      <g
-        transform="translate(0,28800) scale(7.2,-7.2)"
-        stroke="none"
-      >
-        <path fill={color}
-          d="M1815 2970 c39 -12 96 -33 128 -48 l58 -25 47 23 c108 52 183 72 302 77 140 7 240 -14 365 -77 312 -155 568 -531 615 -902 42 -335 -50 -704 -228 -914 -69 -81 -109 -104 -179 -104 -103 1 -173 61 -181 155 -4 46 1 61 52 163 122 243 152 354 143 531 -12 251 -120 507 -276 653 -108 103 -220 142 -334 118 -32 -6 -60 -17 -63 -24 -2 -6 9 -41 25 -76 61 -136 101 -329 101 -485 0 -218 -74 -359 -231 -442 -49 -26 -63 -28 -159 -28 -88 0 -113 4 -154 23 -69 32 -129 83 -180 155 -63 90 -87 163 -94 280 -8 153 21 291 105 500 19 48 32 95 29 103 -6 14 -20 16 -104 12 -113 -6 -184 -31 -269 -97 -218 -169 -317 -594 -229 -983 26 -111 44 -158 79 -195 23 -26 37 -28 84 -11 31 11 35 10 71 -25 43 -42 66 -46 98 -16 40 37 54 20 54 -66 0 -123 -55 -198 -169 -232 -138 -40 -272 6 -407 142 -90 89 -131 162 -178 314 -58 185 -77 426 -47 601 29 168 104 358 198 498 151 228 353 373 584 422 75 16 265 5 344 -20z"/>
-        <path fill={color}
-          d="M1396 2351 c55 -25 74 -68 51 -116 -38 -80 -187 -47 -187 41 0 48 9 65 44 80 40 17 43 17 92 -5z"/>
-        <path fill="#2B2F77"
-          d="M1984 2412 c-21 -13 -52 -87 -74 -176 -17 -71 -21 -110 -18 -185 4 -109 21 -149 73 -177 29 -15 33 -15 64 0 22 12 40 33 53 64 40 90 17 308 -45 432 -23 46 -34 55 -53 42z"/>
-      </g>
-    </svg>
+      <Image
+        src="/malgudi-logo.png"
+        alt="Malgudi"
+        width={size}
+        height={size}
+        priority
+        style={{
+          objectFit: "contain",
+          display: "block",
+        }}
+      />
+    </div>
   );
 }
