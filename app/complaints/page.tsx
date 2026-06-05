@@ -13,6 +13,7 @@ import {
   Store,
 } from 'lucide-react'
 import NavHeader from '@/app/components/NavHeader'
+import WorkerDock from '@/app/components/WorkerDock'
 import type { Complaint, Outlet } from '@/lib/types'
 
 type FilterStatus = 'ALL' | 'OPEN' | 'RESOLVED' | 'HIGH'
@@ -288,7 +289,10 @@ export default function ComplaintsPage() {
             <span>New Swiggy, Zomato, direct, and Google complaints will appear here.</span>
           </section>
         )}
+        <div className="worker-dock-spacer" />
       </main>
+
+      <WorkerDock />
     </div>
   )
 }

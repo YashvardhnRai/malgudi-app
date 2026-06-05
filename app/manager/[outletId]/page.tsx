@@ -23,6 +23,7 @@ import {
   Upload,
   type LucideIcon,
 } from "lucide-react";
+import WorkerDock from "@/app/components/WorkerDock";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { getCeoEmails } from "@/lib/auth";
 import type {
@@ -213,6 +214,10 @@ export default function ManagerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outletId]);
 
+  useEffect(() => {
+    window.localStorage.setItem("malgudi-worker-outlet", outletId);
+  }, [outletId]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -337,8 +342,8 @@ export default function ManagerPage() {
         <header className="manager-hero">
           <button
             type="button"
-            aria-label="Back to dashboard"
-            onClick={() => router.push("/dashboard")}
+            aria-label="Back to worker home"
+            onClick={() => router.push("/worker")}
           >
             <Home size={17} />
           </button>
@@ -502,7 +507,14 @@ export default function ManagerPage() {
             </div>
           )}
         </section>
+
+        <div className="worker-dock-spacer" />
       </section>
+
+      <WorkerDock
+        outletId={outletId}
+        managerPhone={outlet?.manager_phone}
+      />
     </main>
   );
 }

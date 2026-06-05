@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
+import ServiceWorkerRegistration from '@/app/components/ServiceWorkerRegistration'
 import './globals.css'
 
 const inter = Inter({
@@ -16,8 +17,12 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: 'Malgudi Ops',
-  description: 'Restaurant operations management for Malgudi',
+  applicationName: 'Malgudi',
+  title: {
+    default: 'Malgudi Ops',
+    template: '%s | Malgudi',
+  },
+  description: 'Mobile restaurant operations for Malgudi workers and owners',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -47,7 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-full bg-app-bg">{children}</body>
+      <body className="min-h-full bg-app-bg">
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   )
 }

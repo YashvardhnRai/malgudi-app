@@ -21,6 +21,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
+import WorkerDock from '@/app/components/WorkerDock'
 import StatusBadge from '@/app/components/StatusBadge'
 import type { Outlet } from '@/lib/types'
 
@@ -66,13 +67,31 @@ export default function UploadPage() {
 
   useEffect(() => {
     let mounted = true
+    const outletFromUrl = new URLSearchParams(window.location.search).get('outlet') ?? ''
+    const savedOutletId = window.localStorage.getItem('malgudi-worker-outlet') ?? ''
+
     fetch('/api/outlets')
       .then((response) => response.json())
       .then((data: { outlets?: Outlet[] }) => {
         if (!mounted) return
         const nextOutlets = data.outlets ?? []
         setOutlets(nextOutlets)
-        setSelectedOutletId((current) => current || nextOutlets[0]?.id || '')
+        setSelectedOutletId((current) => {
+          if (current && nextOutlets.some((outlet) => outlet.id === current)) {
+            return current
+          }
+
+          const preferredOutlet =
+            nextOutlets.find((outlet) => outlet.id === outletFromUrl) ??
+            nextOutlets.find((outlet) => outlet.id === savedOutletId) ??
+            nextOutlets[0]
+
+          if (preferredOutlet?.id) {
+            window.localStorage.setItem('malgudi-worker-outlet', preferredOutlet.id)
+          }
+
+          return preferredOutlet?.id ?? ''
+        })
       })
       .catch(() => {})
       .finally(() => {
@@ -103,6 +122,11 @@ export default function UploadPage() {
       URL.revokeObjectURL(current[index])
       return current.filter((_, i) => i !== index)
     })
+  }
+
+  function handleOutletChange(outletId: string) {
+    setSelectedOutletId(outletId)
+    window.localStorage.setItem('malgudi-worker-outlet', outletId)
   }
 
   async function handleSubmit() {
@@ -189,7 +213,7 @@ export default function UploadPage() {
                 <span>Outlet</span>
                 <select
                   value={selectedOutletId}
-                  onChange={(event) => setSelectedOutletId(event.target.value)}
+                  onChange={(event) => handleOutletChange(event.target.value)}
                   disabled={loadingOutlets || outlets.length === 0}
                   className="upload-outlet-select"
                 >
@@ -314,7 +338,14 @@ export default function UploadPage() {
           <Link href="/upload" aria-current="page">Upload</Link>
           <Link href="/complaints">Complaints</Link>
         </nav>
+
+        <div className="worker-dock-spacer" />
       </section>
+
+      <WorkerDock
+        outletId={selectedOutletId}
+        managerPhone={selectedOutlet?.manager_phone}
+      />
     </main>
   )
 }
