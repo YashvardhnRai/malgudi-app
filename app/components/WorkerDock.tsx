@@ -23,6 +23,10 @@ export default function WorkerDock({ outletId, managerPhone }: Props) {
     ? { pathname: '/upload', query: { outlet: effectiveOutletId } }
     : '/upload'
 
+  function tap() {
+    navigator.vibrate?.(8)
+  }
+
   const items = [
     {
       href: '/worker',
@@ -61,6 +65,7 @@ export default function WorkerDock({ outletId, managerPhone }: Props) {
               href={item.href}
               className={`worker-dock-item ${item.active ? 'is-active' : ''}`}
               aria-current={item.active ? 'page' : undefined}
+              onClick={tap}
               prefetch={false}
             >
               <Icon size={18} />
@@ -70,7 +75,7 @@ export default function WorkerDock({ outletId, managerPhone }: Props) {
         })}
 
         {managerPhone ? (
-          <a href={`tel:${managerPhone}`} className="worker-dock-call">
+          <a href={`tel:${managerPhone}`} className="worker-dock-call" onClick={tap}>
             <PhoneCall size={18} />
             <span>Call</span>
           </a>

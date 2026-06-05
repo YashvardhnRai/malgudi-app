@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -41,6 +41,7 @@ type UploadScheduleSlot = {
 };
 type TaskDefinition = {
   time: string;
+  hour: number;
   label: string;
   type: ChecklistSubmission["checklist_type"];
   Icon: LucideIcon;
@@ -58,14 +59,14 @@ type UploadStatus =
   | { type: "NONE" };
 
 const TASKS: TaskDefinition[] = [
-  { time: "8:00 AM", label: "Opening Checklist", type: "OPENING", Icon: Sunrise },
-  { time: "10:00 AM", label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
-  { time: "12:00 PM", label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
-  { time: "2:00 PM", label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
-  { time: "3:00 PM", label: "Afternoon Clean", type: "CLEANLINESS", Icon: SprayCan },
-  { time: "6:00 PM", label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
-  { time: "8:00 PM", label: "Evening Clean", type: "CLEANLINESS", Icon: Sparkles },
-  { time: "11:00 PM", label: "Closing Checklist", type: "CLOSING", Icon: Moon },
+  { time: "8:00 AM", hour: 8, label: "Opening Checklist", type: "OPENING", Icon: Sunrise },
+  { time: "10:00 AM", hour: 10, label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
+  { time: "12:00 PM", hour: 12, label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
+  { time: "2:00 PM", hour: 14, label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
+  { time: "3:00 PM", hour: 15, label: "Afternoon Clean", type: "CLEANLINESS", Icon: SprayCan },
+  { time: "6:00 PM", hour: 18, label: "Banmarie Update", type: "BANMARIE", Icon: CookingPot },
+  { time: "8:00 PM", hour: 20, label: "Evening Clean", type: "CLEANLINESS", Icon: Sparkles },
+  { time: "11:00 PM", hour: 23, label: "Closing Checklist", type: "CLOSING", Icon: Moon },
 ];
 
 const CATEGORIES: CategoryDefinition[] = [
@@ -79,11 +80,23 @@ const CATEGORIES: CategoryDefinition[] = [
 const CATEGORY_TO_CHECKLIST_TYPE: Partial<
   Record<UploadCategory, ChecklistSubmission["checklist_type"]>
 > = {
+  FOOD_QUALITY: "OPENING",
   BANMARIE: "BANMARIE",
   CLEANLINESS: "CLEANLINESS",
   RAW_MATERIAL: "CLEANLINESS",
   CLOSING: "CLOSING",
 };
+
+const TASK_TO_CATEGORY: Record<ChecklistSubmission["checklist_type"], UploadCategory> = {
+  OPENING: "FOOD_QUALITY",
+  BANMARIE: "BANMARIE",
+  CLEANLINESS: "CLEANLINESS",
+  CLOSING: "CLOSING",
+};
+
+type TaskTone = "done" | "now" | "overdue" | "upcoming";
+const OUTLET_STORAGE_KEY = "malgudi-worker-outlet";
+const OUTLET_DATA_STORAGE_KEY = "malgudi-worker-outlet-data";
 
 function formatHour(h: number) {
   const hour = h % 12 || 12;
@@ -93,6 +106,26 @@ function formatHour(h: number) {
 function getGreeting() {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
+
+function getCurrentIstHour() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  ).getHours();
+}
+
+function getTaskTone(task: TaskDefinition, done: boolean, currentHour: number): TaskTone {
+  if (done) return "done";
+  if (currentHour === task.hour) return "now";
+  if (currentHour > task.hour) return "overdue";
+  return "upcoming";
+}
+
+function getTaskBadge(tone: TaskTone) {
+  if (tone === "done") return "Done";
+  if (tone === "now") return "Now";
+  if (tone === "overdue") return "Due";
+  return "Next";
 }
 
 function UploadNowButton({
@@ -119,6 +152,7 @@ export default function ManagerPage() {
   const router = useRouter();
   const params = useParams();
   const outletId = params.outletId as string;
+  const uploadRef = useRef<HTMLElement | null>(null);
 
   const [outlet, setOutlet] = useState<Outlet | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -137,6 +171,10 @@ export default function ManagerPage() {
 
     const detail = (await response.json()) as OutletDetailData;
     setOutlet(detail.outlet);
+    window.localStorage.setItem(
+      OUTLET_DATA_STORAGE_KEY,
+      JSON.stringify(detail.outlet)
+    );
     setTasks(
       detail.checklists.map((checklist) => ({
         checklist_type: checklist.checklist_type,
@@ -208,6 +246,13 @@ export default function ManagerPage() {
 
   useEffect(() => {
     queueMicrotask(() => {
+      const cached = window.localStorage.getItem(OUTLET_DATA_STORAGE_KEY);
+      if (cached) {
+        try {
+          const cachedOutlet = JSON.parse(cached) as Outlet;
+          if (cachedOutlet.id === outletId) setOutlet(cachedOutlet);
+        } catch {}
+      }
       void loadData();
       void checkUploadStatus();
     });
@@ -215,7 +260,7 @@ export default function ManagerPage() {
   }, [outletId]);
 
   useEffect(() => {
-    window.localStorage.setItem("malgudi-worker-outlet", outletId);
+    window.localStorage.setItem(OUTLET_STORAGE_KEY, outletId);
   }, [outletId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,6 +271,12 @@ export default function ManagerPage() {
     reader.onload = () => setPreview(reader.result as string);
     reader.readAsDataURL(f);
   };
+
+  function handleTaskSelect(task: TaskDefinition) {
+    setSelectedCategory(TASK_TO_CATEGORY[task.type]);
+    navigator.vibrate?.(10);
+    uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   const handleUpload = async () => {
     if (!file) return;
@@ -330,6 +381,7 @@ export default function ManagerPage() {
     tasks.some((t) => t.checklist_type === task.type)
   ).length;
   const completion = Math.round((completedCount / TASKS.length) * 100);
+  const currentHour = getCurrentIstHour();
   const statusTone =
     uploadStatus?.type === "MISSED" ? "danger" :
     uploadStatus?.type === "DUE" ? "warning" :
@@ -401,22 +453,31 @@ export default function ManagerPage() {
         <section className="manager-task-list">
           {TASKS.map((task, index) => {
             const done = tasks.some((t) => t.checklist_type === task.type);
+            const tone = getTaskTone(task, done, currentHour);
             const Icon = task.Icon;
             return (
-              <article key={`${task.type}-${index}`} className={done ? "is-done" : ""}>
+              <button
+                type="button"
+                key={`${task.type}-${index}`}
+                className={`manager-task-item is-${tone}`}
+                onClick={() => handleTaskSelect(task)}
+              >
                 <div className="manager-task-icon">
                   <Icon size={19} />
                 </div>
-                <div>
+                <div className="manager-task-main">
                   <strong>{task.label}</strong>
-                  <span>Due {task.time}</span>
+                  <span className="manager-task-time">Due {task.time}</span>
                 </div>
+                <span className={`manager-task-badge ${tone}`}>
+                  {getTaskBadge(tone)}
+                </span>
                 {done ? (
                   <CheckCircle2 className="manager-task-state done" size={24} />
                 ) : (
                   <Circle className="manager-task-state" size={24} />
                 )}
-              </article>
+              </button>
             );
           })}
         </section>
@@ -429,7 +490,7 @@ export default function ManagerPage() {
           <Camera size={20} />
         </section>
 
-        <section className="manager-upload-card">
+        <section className="manager-upload-card" ref={uploadRef}>
           <div className="manager-category-grid">
             {CATEGORIES.map((category) => {
               const Icon = category.Icon;

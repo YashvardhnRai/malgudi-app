@@ -25,6 +25,9 @@ import WorkerDock from '@/app/components/WorkerDock'
 import StatusBadge from '@/app/components/StatusBadge'
 import type { Outlet } from '@/lib/types'
 
+const OUTLET_STORAGE_KEY = 'malgudi-worker-outlet'
+const OUTLET_DATA_STORAGE_KEY = 'malgudi-worker-outlet-data'
+
 type Category =
   | 'FOOD_QUALITY'
   | 'BANMARIE'
@@ -68,7 +71,7 @@ export default function UploadPage() {
   useEffect(() => {
     let mounted = true
     const outletFromUrl = new URLSearchParams(window.location.search).get('outlet') ?? ''
-    const savedOutletId = window.localStorage.getItem('malgudi-worker-outlet') ?? ''
+    const savedOutletId = window.localStorage.getItem(OUTLET_STORAGE_KEY) ?? ''
 
     fetch('/api/outlets')
       .then((response) => response.json())
@@ -87,7 +90,11 @@ export default function UploadPage() {
             nextOutlets[0]
 
           if (preferredOutlet?.id) {
-            window.localStorage.setItem('malgudi-worker-outlet', preferredOutlet.id)
+            window.localStorage.setItem(OUTLET_STORAGE_KEY, preferredOutlet.id)
+            window.localStorage.setItem(
+              OUTLET_DATA_STORAGE_KEY,
+              JSON.stringify(preferredOutlet)
+            )
           }
 
           return preferredOutlet?.id ?? ''
@@ -125,8 +132,12 @@ export default function UploadPage() {
   }
 
   function handleOutletChange(outletId: string) {
+    const outlet = outlets.find((item) => item.id === outletId)
     setSelectedOutletId(outletId)
-    window.localStorage.setItem('malgudi-worker-outlet', outletId)
+    window.localStorage.setItem(OUTLET_STORAGE_KEY, outletId)
+    if (outlet) {
+      window.localStorage.setItem(OUTLET_DATA_STORAGE_KEY, JSON.stringify(outlet))
+    }
   }
 
   async function handleSubmit() {

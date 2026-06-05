@@ -14,12 +14,15 @@ import {
   ShieldCheck,
   Store,
 } from 'lucide-react'
+import ConnectionStatus from '@/app/components/ConnectionStatus'
 import MalgudiLogo from '@/app/components/MalgudiLogo'
 import PWAInstallButton from '@/app/components/PWAInstallButton'
 import WorkerDock from '@/app/components/WorkerDock'
+import WorkerShareButton from '@/app/components/WorkerShareButton'
 import type { Outlet } from '@/lib/types'
 
 const OUTLET_STORAGE_KEY = 'malgudi-worker-outlet'
+const OUTLET_DATA_STORAGE_KEY = 'malgudi-worker-outlet-data'
 
 export default function WorkerPage() {
   const [outlets, setOutlets] = useState<Outlet[]>([])
@@ -42,6 +45,12 @@ export default function WorkerPage() {
 
         setOutlets(nextOutlets)
         setSelectedOutletId(preferredOutlet?.id ?? '')
+        if (preferredOutlet) {
+          window.localStorage.setItem(
+            OUTLET_DATA_STORAGE_KEY,
+            JSON.stringify(preferredOutlet)
+          )
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -59,8 +68,12 @@ export default function WorkerPage() {
   )
 
   function selectOutlet(outletId: string) {
+    const outlet = outlets.find((item) => item.id === outletId)
     setSelectedOutletId(outletId)
     window.localStorage.setItem(OUTLET_STORAGE_KEY, outletId)
+    if (outlet) {
+      window.localStorage.setItem(OUTLET_DATA_STORAGE_KEY, JSON.stringify(outlet))
+    }
   }
 
   const managerHref = selectedOutlet ? `/manager/${selectedOutlet.id}` : '/manager'
@@ -80,7 +93,11 @@ export default function WorkerPage() {
                 <small>Worker app</small>
               </span>
             </div>
-            <PWAInstallButton />
+            <div className="worker-top-actions">
+              <ConnectionStatus />
+              <WorkerShareButton />
+              <PWAInstallButton />
+            </div>
           </div>
 
           <div className="worker-hero-copy">
