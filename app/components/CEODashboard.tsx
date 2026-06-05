@@ -12,15 +12,23 @@ import {
   LayoutDashboard,
   MapPin,
   PhoneCall,
+  Radio,
   ShieldCheck,
   Sparkles,
   Store,
+  Wifi,
   type LucideIcon,
 } from 'lucide-react'
 import NavHeader from '@/app/components/NavHeader'
 import PhotoUpload from '@/app/components/PhotoUpload'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import type { DashboardSummary, OutletWithStatus } from '@/lib/types'
+import {
+  MANAGER_PRESENCE_CHANNEL,
+  isFreshManagerPresence,
+  type ManagerPresencePayload,
+  type ManagerPresenceSummary,
+} from '@/lib/presence'
 
 function formatINR(n: number): string {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`
@@ -72,6 +80,33 @@ const STATUS_STYLE: Record<
   },
 }
 
+type PresenceStateMap = Record<string, (ManagerPresencePayload & { presence_ref?: string })[]>
+
+function getPresenceByOutlet(state: PresenceStateMap): Record<string, ManagerPresenceSummary> {
+  const now = Date.now()
+  const next: Record<string, ManagerPresenceSummary> = {}
+
+  Object.values(state).flat().forEach((presence) => {
+    if (!presence.outlet_id || !isFreshManagerPresence(presence, now)) return
+
+    const existing = next[presence.outlet_id]
+    const existingSeen = existing ? new Date(existing.last_seen_at).getTime() : 0
+    const nextSeen = new Date(presence.last_seen_at).getTime()
+
+    if (!existing || nextSeen >= existingSeen) {
+      next[presence.outlet_id] = {
+        ...presence,
+        connections: (existing?.connections ?? 0) + 1,
+      }
+      return
+    }
+
+    existing.connections += 1
+  })
+
+  return next
+}
+
 type Metric = {
   label: string
   value: string
@@ -115,12 +150,14 @@ function OutletCard({
   onUpload,
   onReview,
   reviewOpen,
+  presence,
 }: {
   outlet: OutletWithStatus
   onOpen: () => void
   onUpload: () => void
   onReview: () => void
   reviewOpen: boolean
+  presence?: ManagerPresenceSummary
 }) {
   const status = STATUS_STYLE[outlet.status]
 
@@ -144,6 +181,17 @@ function OutletCard({
           <div className="ops-outlet-place">
             <MapPin size={13} />
             {outlet.city}
+          </div>
+          <div className={`ops-manager-presence ${presence ? 'online' : 'offline'}`}>
+            <span />
+            <strong>{presence ? `${presence.manager_name} online` : 'Manager offline'}</strong>
+            <small>
+              {presence
+                ? presence.connections > 1
+                  ? `${presence.connections} devices live`
+                  : 'Live on app'
+                : 'Not on manager app'}
+            </small>
           </div>
         </div>
         <span
@@ -221,6 +269,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [reviewOutletId, setReviewOutletId] = useState<string | null>(null)
+  const [presenceByOutlet, setPresenceByOutlet] = useState<Record<string, ManagerPresenceSummary>>({})
   const { text: greeting, date } = getGreeting()
 
   useEffect(() => {
@@ -241,9 +290,45 @@ export default function CEODashboard({ userName }: { userName: string }) {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+
+    const supabase = createClient()
+    const channel = supabase.channel(MANAGER_PRESENCE_CHANNEL, {
+      config: {
+        presence: {
+          enabled: true,
+        },
+      },
+    })
+
+    function syncPresence() {
+      setPresenceByOutlet(
+        getPresenceByOutlet(channel.presenceState() as PresenceStateMap)
+      )
+    }
+
+    channel
+      .on('presence', { event: 'sync' }, syncPresence)
+      .on('presence', { event: 'join' }, syncPresence)
+      .on('presence', { event: 'leave' }, syncPresence)
+      .subscribe()
+
+    const intervalId = window.setInterval(syncPresence, 30_000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      void supabase.removeChannel(channel)
+    }
+  }, [])
+
   const urgentOutlets = useMemo(
     () => data?.outlets.filter((outlet) => outlet.status === 'RED') ?? [],
     [data]
+  )
+  const onlineManagers = useMemo(
+    () => Object.values(presenceByOutlet).sort((a, b) => a.outlet_name.localeCompare(b.outlet_name)),
+    [presenceByOutlet]
   )
 
   const metrics: Metric[] | null = data
@@ -326,6 +411,10 @@ export default function CEODashboard({ userName }: { userName: string }) {
               <span>Critical locations</span>
               <strong>{loading ? '-' : urgentOutlets.length}</strong>
             </div>
+            <div className="ops-hero-panel-row">
+              <span>Managers online</span>
+              <strong>{onlineManagers.length}</strong>
+            </div>
           </div>
         </section>
 
@@ -337,6 +426,42 @@ export default function CEODashboard({ userName }: { userName: string }) {
             : metrics?.map((metric, index) => (
                 <MetricCard key={metric.label} metric={metric} index={index} />
               ))}
+        </section>
+
+        <section className={`ops-live-strip ${onlineManagers.length ? 'has-online' : ''}`}>
+          <div className="ops-live-heading">
+            <span>
+              {onlineManagers.length ? <Wifi size={17} /> : <Radio size={17} />}
+              Manager presence
+            </span>
+            <strong>
+              {onlineManagers.length
+                ? `${onlineManagers.length} online now`
+                : 'No managers online'}
+            </strong>
+          </div>
+
+          {onlineManagers.length ? (
+            <div className="ops-live-list">
+              {onlineManagers.slice(0, 6).map((presence) => (
+                <div key={presence.outlet_id} className="ops-live-card">
+                  <span />
+                  <div>
+                    <strong>{presence.manager_name}</strong>
+                    <small>{presence.outlet_name} - {presence.outlet_city || 'Outlet'}</small>
+                  </div>
+                  {presence.manager_phone && (
+                    <a href={`tel:${presence.manager_phone}`} onClick={(event) => event.stopPropagation()}>
+                      <PhoneCall size={14} />
+                      Call
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Managers appear here the moment they open their shift board.</p>
+          )}
         </section>
 
         {data && data.alerts.length > 0 && (
@@ -389,6 +514,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
               <OutletCard
                 key={outlet.id}
                 outlet={outlet}
+                presence={presenceByOutlet[outlet.id]}
                 reviewOpen={reviewOutletId === outlet.id}
                 onOpen={() => router.push(`/outlet/${outlet.id}`)}
                 onUpload={() => router.push(`/manager/${outlet.id}`)}

@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import WorkerDock from "@/app/components/WorkerDock";
+import ManagerPresenceHeartbeat from "@/app/components/ManagerPresenceHeartbeat";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { getCeoEmails } from "@/lib/auth";
 import type {
@@ -403,6 +404,13 @@ export default function ManagerPage() {
             <span>{getGreeting()}</span>
             <h1>{outlet?.name || "Opening shift"}</h1>
             <p>{outlet ? `${outlet.city} - Manager view` : "Manager view"}</p>
+            <ManagerPresenceHeartbeat
+              outletId={outletId}
+              outletName={outlet?.name}
+              outletCity={outlet?.city}
+              managerName={outlet?.manager_name}
+              managerPhone={outlet?.manager_phone}
+            />
           </div>
         </header>
 
