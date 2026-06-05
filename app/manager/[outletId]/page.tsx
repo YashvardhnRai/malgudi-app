@@ -105,7 +105,9 @@ function formatHour(h: number) {
 }
 
 function getGreeting() {
-  const hour = new Date().getHours();
+  const hour = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  ).getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 }
 
