@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react'
 import type { PhotoUpload } from '@/lib/types'

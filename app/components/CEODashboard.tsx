@@ -1,14 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  BellRing,
+  Camera,
+  ClipboardCheck,
+  IndianRupee,
+  LayoutDashboard,
+  MapPin,
+  PhoneCall,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  type LucideIcon,
+} from 'lucide-react'
 import NavHeader from '@/app/components/NavHeader'
 import PhotoUpload from '@/app/components/PhotoUpload'
-import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase'
+import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import type { DashboardSummary, OutletWithStatus } from '@/lib/types'
-
-const isMobile = () =>
-  typeof window !== 'undefined' && window.innerWidth < 768
 
 function formatINR(n: number): string {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`
@@ -27,51 +39,193 @@ function getGreeting() {
     h >= 12 && h < 17 ? 'Good afternoon' :
     h >= 17 && h < 21 ? 'Good evening' :
     'Good night'
-  const emoji =
-    h >= 5 && h < 12 ? '🌅' :
-    h >= 12 && h < 17 ? '☀️' :
-    h >= 17 && h < 21 ? '🌆' :
-    '🌙'
   const date = ist.toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-    year: 'numeric',
     timeZone: 'Asia/Kolkata',
   })
-  return { text, emoji, date }
+  return { text, date }
 }
 
-const STATUS_COLOR: Record<OutletWithStatus['status'], string> = {
-  GREEN: '#22C55E',
-  AMBER: '#F59E0B',
-  RED: '#EF4444',
+const STATUS_STYLE: Record<
+  OutletWithStatus['status'],
+  { label: string; color: string; bg: string; border: string }
+> = {
+  GREEN: {
+    label: 'Operational',
+    color: '#087F5B',
+    bg: '#E8F7EF',
+    border: '#A7E3C1',
+  },
+  AMBER: {
+    label: 'Watch closely',
+    color: '#9A5B00',
+    bg: '#FFF4D8',
+    border: '#F6D58A',
+  },
+  RED: {
+    label: 'Needs action',
+    color: '#B42318',
+    bg: '#FFF0EF',
+    border: '#FFB4AD',
+  },
 }
-const STATUS_LABEL: Record<OutletWithStatus['status'], string> = {
-  GREEN: 'Operational',
-  AMBER: 'Needs attention',
-  RED: 'Alert',
+
+type Metric = {
+  label: string
+  value: string
+  detail: string
+  icon: LucideIcon
+  color: string
+  tint: string
+}
+
+function MetricCard({ metric, index }: { metric: Metric; index: number }) {
+  const Icon = metric.icon
+
+  return (
+    <div
+      className="ops-metric"
+      style={{
+        animationDelay: `${90 + index * 70}ms`,
+        borderColor: `${metric.color}24`,
+      }}
+    >
+      <div className="ops-metric-top">
+        <div
+          className="ops-metric-icon"
+          style={{ background: metric.tint, color: metric.color }}
+        >
+          <Icon size={18} strokeWidth={2.2} />
+        </div>
+        <span style={{ color: metric.color }}>{metric.label}</span>
+      </div>
+      <div className="ops-metric-value" style={{ color: metric.color }}>
+        {metric.value}
+      </div>
+      <div className="ops-metric-detail">{metric.detail}</div>
+    </div>
+  )
+}
+
+function OutletCard({
+  outlet,
+  onOpen,
+  onUpload,
+  onReview,
+  reviewOpen,
+}: {
+  outlet: OutletWithStatus
+  onOpen: () => void
+  onUpload: () => void
+  onReview: () => void
+  reviewOpen: boolean
+}) {
+  const status = STATUS_STYLE[outlet.status]
+
+  return (
+    <article
+      className="ops-outlet"
+      onClick={onOpen}
+      style={{
+        borderColor: status.border,
+        boxShadow:
+          outlet.status === 'RED'
+            ? '0 18px 42px rgba(180, 35, 24, 0.12)'
+            : '0 16px 36px rgba(28, 35, 66, 0.08)',
+      }}
+    >
+      <div className="ops-outlet-status-bar" style={{ background: status.color }} />
+
+      <div className="ops-outlet-header">
+        <div>
+          <div className="ops-outlet-name">{outlet.name}</div>
+          <div className="ops-outlet-place">
+            <MapPin size={13} />
+            {outlet.city}
+          </div>
+        </div>
+        <span
+          className="ops-status-pill"
+          style={{ background: status.bg, color: status.color, borderColor: status.border }}
+        >
+          {status.label}
+        </span>
+      </div>
+
+      <div className="ops-outlet-grid">
+        <div>
+          <span>Sales</span>
+          <strong style={{ color: '#E0522D' }}>
+            {outlet.today_sales > 0 ? formatINR(outlet.today_sales) : '₹0'}
+          </strong>
+        </div>
+        <div>
+          <span>Complaints</span>
+          <strong style={{ color: outlet.complaint_count > 0 ? '#B42318' : '#087F5B' }}>
+            {outlet.complaint_count || 'None'}
+          </strong>
+        </div>
+        <div>
+          <span>Tasks</span>
+          <strong>
+            {outlet.checklists_done}/{outlet.checklists_total}
+          </strong>
+        </div>
+      </div>
+
+      <div className="ops-outlet-footer">
+        <span>{outlet.last_update || 'Awaiting next update'}</span>
+        <div className="ops-outlet-actions">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onUpload()
+            }}
+            aria-label={`Open upload for ${outlet.name}`}
+          >
+            <Camera size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onReview()
+            }}
+            aria-label={`Toggle AI review for ${outlet.name}`}
+          >
+            <Sparkles size={15} />
+          </button>
+          <ArrowUpRight size={16} style={{ color: '#E0522D' }} />
+        </div>
+      </div>
+
+      {reviewOpen && (
+        <div className="ops-inline-review" onClick={(event) => event.stopPropagation()}>
+          <PhotoUpload
+            outletId={outlet.id}
+            outletName={outlet.name}
+            managerName={outlet.manager_name}
+            managerPhone={outlet.manager_phone}
+          />
+        </div>
+      )}
+    </article>
+  )
 }
 
 export default function CEODashboard({ userName }: { userName: string }) {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mobile, setMobile] = useState(false)
   const [reviewOutletId, setReviewOutletId] = useState<string | null>(null)
-  const { text: greeting, emoji, date } = getGreeting()
+  const { text: greeting, date } = getGreeting()
 
-  useEffect(() => {
-    const check = () => setMobile(isMobile())
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  // Session keepalive — redirect to /auth if session expires
   useEffect(() => {
     if (!isSupabaseConfigured) return
-    const supabase = getSupabaseBrowserClient()
+    const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event: unknown, session: unknown) => {
         if (!session) router.push('/auth')
@@ -87,704 +241,171 @@ export default function CEODashboard({ userName }: { userName: string }) {
       .finally(() => setLoading(false))
   }, [])
 
-  const statCards = data
+  const urgentOutlets = useMemo(
+    () => data?.outlets.filter((outlet) => outlet.status === 'RED') ?? [],
+    [data]
+  )
+
+  const metrics: Metric[] | null = data
     ? [
         {
           label: 'Sales Today',
           value: formatINR(data.total_sales),
-          icon: '💰',
-          color: '#F05A28',
-          desc: 'Across all outlets',
-          delay: 0,
+          detail: 'Across every live outlet',
+          icon: IndianRupee,
+          color: '#E0522D',
+          tint: '#FFF0E8',
         },
         {
-          label: 'Open Complaints',
+          label: 'Open Issues',
           value: String(data.total_complaints),
-          icon: '⚠️',
-          color: data.total_complaints > 0 ? '#EF4444' : '#22C55E',
-          desc: data.total_complaints > 0 ? 'Need attention' : 'All clear',
-          delay: 80,
+          detail: data.total_complaints ? 'Needs owner attention' : 'No open complaints',
+          icon: AlertTriangle,
+          color: data.total_complaints ? '#B42318' : '#087F5B',
+          tint: data.total_complaints ? '#FFF0EF' : '#E8F7EF',
         },
         {
           label: 'Compliance',
           value: `${data.compliance_rate}%`,
-          icon: '✅',
+          detail: 'Scheduled checks completed',
+          icon: ShieldCheck,
           color:
             data.compliance_rate >= 90
-              ? '#22C55E'
+              ? '#087F5B'
               : data.compliance_rate >= 75
-              ? '#F59E0B'
-              : '#EF4444',
-          desc: 'Checklists completed',
-          delay: 160,
+              ? '#9A5B00'
+              : '#B42318',
+          tint:
+            data.compliance_rate >= 90
+              ? '#E8F7EF'
+              : data.compliance_rate >= 75
+              ? '#FFF4D8'
+              : '#FFF0EF',
         },
         {
-          label: 'Photos Uploaded',
+          label: 'Photo Proof',
           value: String(data.photos_uploaded ?? 0),
-          icon: '📸',
-          color: '#2B2F77',
-          desc: 'Today',
-          delay: 240,
+          detail: 'Manager uploads today',
+          icon: Camera,
+          color: '#2B5F75',
+          tint: '#E7F4F8',
         },
       ]
     : null
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--warm-white)',
-        fontFamily: 'var(--font-body)',
-      }}
-    >
+    <div className="ops-page">
       <NavHeader userName={userName} />
 
-      {/* ── HERO ─────────────────────────────── */}
-      <div
-        className="hero-padding"
-        style={{
-          background:
-            'linear-gradient(135deg, #1E2260 0%, #2B2F77 60%, #363B8F 100%)',
-          padding: 'clamp(32px, 6vw, 56px) clamp(16px, 4vw, 48px) clamp(72px, 12vw, 96px)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Animated background orbs */}
-        <div
-          style={{
-            position: 'absolute',
-            top: -100,
-            right: -100,
-            width: 500,
-            height: 500,
-            borderRadius: '50%',
-            background:
-              'radial-gradient(circle, rgba(240,90,40,0.12) 0%, transparent 70%)',
-            animation: 'float 6s ease-in-out infinite',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: -80,
-            left: '30%',
-            width: 300,
-            height: 300,
-            borderRadius: '50%',
-            background:
-              'radial-gradient(circle, rgba(240,90,40,0.06) 0%, transparent 70%)',
-            animation: 'float 8s ease-in-out infinite reverse',
-            pointerEvents: 'none',
-          }}
-        />
-
-        {/* Grid pattern overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `
-              linear-gradient(rgba(240,90,40,0.03) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(240,90,40,0.03) 1px, transparent 1px)
-            `,
-            backgroundSize: '40px 40px',
-            pointerEvents: 'none',
-          }}
-        />
-
-        {/* Date */}
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 4,
-            textTransform: 'uppercase',
-            color: 'rgba(240,90,40,0.6)',
-            marginBottom: 16,
-            animation: 'fadeUp 0.6s var(--ease-out-expo) 0.1s both',
-          }}
-        >
-          {date}
-        </div>
-
-        {/* Greeting */}
-        <h1
-          className="hero-title"
-          style={{
-            fontSize: 'clamp(28px, 6vw, 48px)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            color: '#fff',
-            marginBottom: 12,
-            lineHeight: 1.1,
-            letterSpacing: -1,
-            animation: 'fadeUp 0.7s var(--ease-out-expo) 0.2s both',
-          }}
-        >
-          {greeting}, {userName}{' '}
-          <span
-            style={{
-              display: 'inline-block',
-              animation: 'float 3s ease-in-out infinite',
-            }}
-          >
-            {emoji}
-          </span>
-        </h1>
-
-        {/* Live badge */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            animation: 'fadeUp 0.7s var(--ease-out-expo) 0.3s both',
-          }}
-        >
-          <div
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: '#22C55E',
-              animation: 'pulse-orange 2s infinite',
-            }}
-          />
-          <span
-            style={{
-              fontSize: 14,
-              color: '#F05A28',
-              fontWeight: 500,
-              letterSpacing: 0.5,
-            }}
-          >
-            {loading
-              ? 'Loading…'
-              : `${data?.outlets.length ?? 0} outlet${
-                  (data?.outlets.length ?? 0) !== 1 ? 's' : ''
-                } · Mumbai · Live`}
-          </span>
-        </div>
-      </div>
-
-      {/* ── FLOATING STAT CARDS ───────────────── */}
-      <div
-        className="dashboard-padding"
-        style={{
-          padding: '0 clamp(16px, 4vw, 48px)',
-          marginTop: -48,
-          marginBottom: 48,
-          position: 'relative',
-          zIndex: 10,
-        }}
-      >
-        <div className="stats-grid">
-          {loading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="skeleton"
-                  style={{ height: 140, borderRadius: 20 }}
-                />
-              ))
-            : statCards!.map((card, i) => (
-                <div
-                  key={card.label}
-                  className="card-hover"
-                  style={{
-                    background: '#fff',
-                    borderRadius: 20,
-                    padding: '24px 28px',
-                    boxShadow: '0 8px 40px rgba(43,47,119,0.12)',
-                    animation: `fadeUp 0.6s var(--ease-out-expo) ${0.4 + i * 0.08}s both`,
-                    border: '1px solid rgba(43,47,119,0.06)',
-                    cursor: 'default',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: 1.5,
-                        textTransform: 'uppercase',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      {card.label}
-                    </div>
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                        background: `${card.color}18`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 18,
-                      }}
-                    >
-                      {card.icon}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      color: card.color,
-                      lineHeight: 1,
-                      marginBottom: 8,
-                      letterSpacing: -1,
-                    }}
-                  >
-                    {card.value}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text-muted)',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {card.desc}
-                  </div>
-
-                  {/* Bottom accent line */}
-                  <div
-                    style={{
-                      marginTop: 16,
-                      height: 2,
-                      borderRadius: 100,
-                      background: `linear-gradient(90deg, ${card.color}, transparent)`,
-                      opacity: 0.3,
-                    }}
-                  />
-                </div>
-              ))}
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT ─────────────────────── */}
-      <div style={{ padding: '0 clamp(16px, 4vw, 48px) 64px' }}>
-
-        {/* Alerts */}
-        {data && data.alerts.length > 0 && (
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #FFF5F5, #FFF8F8)',
-              border: '1px solid #FECACA',
-              borderLeft: '4px solid #EF4444',
-              borderRadius: 16,
-              padding: '20px 24px',
-              marginBottom: 40,
-              animation: 'fadeUp 0.6s var(--ease-out-expo) 0.6s both',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#B91C1C',
-                marginBottom: 10,
-                letterSpacing: 0.5,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 14 }}>⚠</span>
-              {data.alerts.length} alert{data.alerts.length > 1 ? 's' : ''} require
-              your attention
+      <main className="ops-main">
+        <section className="ops-hero">
+          <div className="ops-hero-copy">
+            <div className="ops-eyebrow">
+              <LayoutDashboard size={14} />
+              CEO command center
             </div>
-            {data.alerts.map((a, i) => {
-              const outletForAlert = a.outlet_id
-                ? data.outlets.find((o) => o.id === a.outlet_id)
-                : null
-              return (
-                <div key={a.id ?? i} style={{ marginTop: 10 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: '#DC2626',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 4,
-                        height: 4,
-                        borderRadius: '50%',
-                        background: '#DC2626',
-                        flexShrink: 0,
-                        marginTop: 6,
-                      }}
-                    />
-                    <span style={{ flex: 1 }}>
-                      {a.alert_type === 'AI_PHOTO_REVIEW' && '🤖 AI Review · '}
-                      {outletForAlert && (
-                        <strong>{outletForAlert.name}: </strong>
-                      )}
-                      {a.message}
-                    </span>
-                    {a.alert_type === 'AI_PHOTO_REVIEW' && outletForAlert?.manager_phone && (
-                      <a
-                        href={`tel:${outletForAlert.manager_phone}`}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '6px 12px',
-                          minHeight: 36,
-                          background: '#F05A28',
-                          borderRadius: 100,
-                          color: '#fff',
-                          textDecoration: 'none',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        📞 Call Manager
+            <h1>
+              {greeting}, {userName}
+            </h1>
+            <p>
+              {date} · Live view of sales, compliance, photo proof, and complaint
+              pressure across Malgudi operations.
+            </p>
+          </div>
+
+          <div className="ops-hero-panel">
+            <div className="ops-hero-panel-row">
+              <span>Operational pulse</span>
+              <strong>{loading ? 'Loading' : urgentOutlets.length ? 'Action needed' : 'Stable'}</strong>
+            </div>
+            <div className="ops-pulse-ring">
+              <span>{loading ? '-' : data?.outlets.length ?? 0}</span>
+              <small>outlets</small>
+            </div>
+            <div className="ops-hero-panel-row">
+              <span>Critical locations</span>
+              <strong>{loading ? '-' : urgentOutlets.length}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="ops-metrics-grid" aria-label="Operations metrics">
+          {loading
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="ops-metric skeleton" style={{ minHeight: 158 }} />
+              ))
+            : metrics?.map((metric, index) => (
+                <MetricCard key={metric.label} metric={metric} index={index} />
+              ))}
+        </section>
+
+        {data && data.alerts.length > 0 && (
+          <section className="ops-alert-strip">
+            <div className="ops-alert-heading">
+              <BellRing size={18} />
+              <span>{data.alerts.length} alert{data.alerts.length > 1 ? 's' : ''} require attention</span>
+            </div>
+            <div className="ops-alert-list">
+              {data.alerts.slice(0, 4).map((alert) => {
+                const outlet = alert.outlet_id
+                  ? data.outlets.find((item) => item.id === alert.outlet_id)
+                  : null
+                return (
+                  <div key={alert.id} className="ops-alert-item">
+                    <span>{outlet ? `${outlet.name}: ` : ''}{alert.message}</span>
+                    {outlet?.manager_phone && (
+                      <a href={`tel:${outlet.manager_phone}`} aria-label={`Call ${outlet.name} manager`}>
+                        <PhoneCall size={14} />
+                        Call
                       </a>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </section>
         )}
 
-        {/* Section header */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 24,
-            animation: 'fadeUp 0.6s var(--ease-out-expo) 0.5s both',
-          }}
-        >
+        <section className="ops-section-head">
           <div>
-            <h2
-              style={{
-                fontSize: 28,
-                fontFamily: 'var(--font-display)',
-                fontWeight: 800,
-                color: 'var(--navy)',
-                letterSpacing: -0.5,
-                marginBottom: 4,
-              }}
-            >
-              Outlets
-            </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {loading
-                ? '…'
-                : `${data?.outlets.length ?? 0} location${
-                    (data?.outlets.length ?? 0) !== 1 ? 's' : ''
-                  } · Mumbai`}
-            </p>
+            <span>Outlet Control</span>
+            <h2>Every location, ranked by attention</h2>
           </div>
-        </div>
+          <div className="ops-section-summary">
+            <Store size={16} />
+            {loading ? 'Loading outlets' : `${data?.outlets.length ?? 0} active outlets`}
+          </div>
+        </section>
 
-        {/* Outlet cards */}
         {loading ? (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: 20,
-            }}
-          >
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="skeleton"
-                style={{ height: 240, borderRadius: 20 }}
+          <section className="ops-outlet-grid-wrap">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="ops-outlet skeleton" style={{ minHeight: 258 }} />
+            ))}
+          </section>
+        ) : data && data.outlets.length > 0 ? (
+          <section className="ops-outlet-grid-wrap">
+            {data.outlets.map((outlet) => (
+              <OutletCard
+                key={outlet.id}
+                outlet={outlet}
+                reviewOpen={reviewOutletId === outlet.id}
+                onOpen={() => router.push(`/outlet/${outlet.id}`)}
+                onUpload={() => router.push(`/manager/${outlet.id}`)}
+                onReview={() =>
+                  setReviewOutletId(reviewOutletId === outlet.id ? null : outlet.id)
+                }
               />
             ))}
-          </div>
-        ) : data && data.outlets.length > 0 ? (
-          <div
-            className="outlets-grid"
-            style={{
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            }}
-          >
-            {data.outlets.map((outlet, i) => {
-              const color = STATUS_COLOR[outlet.status]
-              const label = STATUS_LABEL[outlet.status]
-
-              return (
-                <div
-                  key={outlet.id}
-                  className="card-hover"
-                  onClick={() => router.push(`/outlet/${outlet.id}`)}
-                  style={{
-                    background: '#fff',
-                    borderRadius: 20,
-                    padding: 28,
-                    border: '1px solid var(--border)',
-                    cursor: 'pointer',
-                    animation: `fadeUp 0.6s var(--ease-out-expo) ${0.6 + i * 0.1}s both`,
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Color accent top bar */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 3,
-                      background: `linear-gradient(90deg, ${color}, transparent)`,
-                      borderRadius: '20px 20px 0 0',
-                    }}
-                  />
-
-                  {/* Header */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: 24,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 20,
-                          fontFamily: 'var(--font-display)',
-                          fontWeight: 800,
-                          color: 'var(--navy)',
-                          marginBottom: 4,
-                          letterSpacing: -0.3,
-                        }}
-                      >
-                        {outlet.name}
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background: color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color,
-                            fontWeight: 600,
-                            letterSpacing: 0.3,
-                          }}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        padding: '6px 12px',
-                        background: `${color}12`,
-                        borderRadius: 100,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color,
-                        letterSpacing: 0.5,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {outlet.city}
-                    </div>
-                  </div>
-
-                  {/* Stats grid */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: 12,
-                      marginBottom: 20,
-                    }}
-                  >
-                    {[
-                      {
-                        label: 'Sales',
-                        value:
-                          outlet.today_sales > 0
-                            ? formatINR(outlet.today_sales)
-                            : '₹0',
-                        color: '#F05A28',
-                      },
-                      {
-                        label: 'Complaints',
-                        value:
-                          outlet.complaint_count > 0
-                            ? String(outlet.complaint_count)
-                            : 'None',
-                        color:
-                          outlet.complaint_count > 0 ? '#EF4444' : '#22C55E',
-                      },
-                      {
-                        label: 'Checklists',
-                        value: `${outlet.checklists_done}/${outlet.checklists_total}`,
-                        color: 'var(--text-muted)',
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        style={{
-                          background: 'var(--warm-white)',
-                          borderRadius: 12,
-                          padding: 12,
-                          textAlign: 'center',
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 800,
-                            color: item.color,
-                            fontFamily: 'var(--font-display)',
-                            lineHeight: 1,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {item.value}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 600,
-                            color: 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: 1,
-                          }}
-                        >
-                          {item.label}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Footer */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      paddingTop: 16,
-                      borderTop: '1px solid var(--border)',
-                    }}
-                  >
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {outlet.last_update ? 'Updated recently' : 'No updates today'}
-                    </span>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          router.push(`/manager/${outlet.id}`)
-                        }}
-                        className="btn-navy"
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 11,
-                          minHeight: 32,
-                        }}
-                      >
-                        📸 Upload
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setReviewOutletId(
-                            reviewOutletId === outlet.id ? null : outlet.id
-                          )
-                        }}
-                        className="btn-navy"
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 11,
-                          minHeight: 32,
-                        }}
-                      >
-                        🔍 AI Review
-                      </button>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: 'var(--orange)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                      >
-                        View details →
-                      </span>
-                    </div>
-                  </div>
-
-                  {reviewOutletId === outlet.id && (
-                    <div
-                      style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <PhotoUpload
-                        outletId={outlet.id}
-                        outletName={outlet.name}
-                        managerName={outlet.manager_name}
-                        managerPhone={outlet.manager_phone}
-                      />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          </section>
         ) : (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '48px 0',
-              color: 'var(--text-muted)',
-              fontSize: 14,
-            }}
-          >
-            No outlet data available
+          <div className="ops-empty">
+            <ClipboardCheck size={28} />
+            <strong>No outlet data available</strong>
+            <span>Connect Supabase seed data or use demo fallback data.</span>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

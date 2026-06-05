@@ -21,6 +21,9 @@ export async function GET() {
     ])
 
     if (outletsRes.error) throw outletsRes.error
+    if (!outletsRes.data?.length) {
+      return NextResponse.json(getMockDashboard())
+    }
 
     const outlets = (outletsRes.data ?? []).map(outlet => {
       const sales = (salesRes.data ?? []).find(s => s.outlet_id === outlet.id)

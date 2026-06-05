@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import NavBar from '@/app/components/NavBar'
-import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase'
+import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { User, Outlet } from '@/lib/types'
 
 const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
@@ -36,17 +36,12 @@ export default function AdminUsersPage() {
   })
 
   async function load() {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
     try {
-      const supabase = getSupabaseBrowserClient()
-      const [{ data: usersData }, outletRes] = await Promise.all([
-        supabase.from('users').select('*').order('created_at', { ascending: false }),
+      const [usersRes, outletRes] = await Promise.all([
+        fetch('/api/users').then(r => r.json()),
         fetch('/api/outlets').then(r => r.json()),
       ])
-      setUsers((usersData as User[]) ?? [])
+      setUsers((usersRes.users as User[]) ?? [])
       setOutlets(outletRes.outlets ?? [])
     } catch {
       // noop
@@ -55,7 +50,11 @@ export default function AdminUsersPage() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    queueMicrotask(() => {
+      void load()
+    })
+  }, [])
 
   async function handleAddUser(e: React.FormEvent) {
     e.preventDefault()
@@ -70,28 +69,22 @@ export default function AdminUsersPage() {
     }
 
     try {
-      const supabase = getSupabaseBrowserClient()
-
-      // Insert user record
-      const { error: insertError } = await supabase.from('users').insert({
-        name: form.name,
-        email: form.email,
-        phone: form.phone || null,
-        role: form.role,
-        outlet_id: form.outlet_id || null,
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       })
-      if (insertError) throw insertError
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error ?? 'Failed to add user')
 
-      // Send magic link
-      await supabase.auth.admin.inviteUserByEmail(form.email).catch(() => {
-        // Fallback: send OTP
-        return supabase.auth.signInWithOtp({ email: form.email })
-      })
-
-      setSuccess(`✓ ${form.name} added and invite sent to ${form.email}`)
+      setSuccess(
+        result.inviteWarning
+          ? `${form.name} added. Invite warning: ${result.inviteWarning}`
+          : `✓ ${form.name} added and invite sent to ${form.email}`
+      )
       setShowForm(false)
       setForm({ name: '', email: '', phone: '', role: 'MANAGER', outlet_id: '' })
-      load()
+      await load()
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Failed to add user')
     } finally {

@@ -181,8 +181,6 @@ export function getMockDashboard(): DashboardSummary {
     const sales = MOCK_SALES.find(s => s.outlet_id === outlet.id)
     const complaints = MOCK_COMPLAINTS.filter(c => c.outlet_id === outlet.id && c.status !== 'RESOLVED')
     const checklists = getChecklistsForOutlet(outlet.id)
-    const flaggedPhotos = MOCK_PHOTOS.filter(p => p.outlet_id === outlet.id && p.ai_status === 'FLAGGED')
-
     let status: 'GREEN' | 'AMBER' | 'RED' = 'GREEN'
     if (complaints.length > 0) {
       status = 'RED'

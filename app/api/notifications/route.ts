@@ -41,8 +41,9 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
     return NextResponse.json(data, { status: 201 })
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Insert failed' }, { status: 400 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Insert failed'
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }
 

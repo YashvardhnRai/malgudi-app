@@ -2,6 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import CEODashboard from "@/app/components/CEODashboard";
+import { getSupabaseServerClient } from "@/lib/supabase";
+import { getDisplayNameFromEmail, isCeoEmail } from "@/lib/auth";
+
+type UserProfile = {
+  role: "CEO" | "MANAGER" | "STAFF";
+  name: string | null;
+};
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -29,16 +36,19 @@ export default async function DashboardPage() {
     redirect("/auth");
   }
 
-  const { data: profiles } = await supabase
+  const { data: profile } = await getSupabaseServerClient()
     .from("users")
     .select("role, name")
-    .eq("email", user.email);
+    .eq("email", user.email)
+    .maybeSingle<UserProfile>();
 
-  const profile = profiles?.[0];
-
-  if (!profile || profile.role !== "CEO") {
+  if (profile?.role !== "CEO" && !isCeoEmail(user.email)) {
     redirect("/auth");
   }
 
-  return <CEODashboard userName={profile.name || "Team"} />;
+  return (
+    <CEODashboard
+      userName={profile?.name || getDisplayNameFromEmail(user.email)}
+    />
+  );
 }

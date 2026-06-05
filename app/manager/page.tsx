@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import BottomNav from '@/app/components/BottomNav'
 import TaskCard from '@/app/components/TaskCard'
 import ChecklistForm from '@/app/components/ChecklistForm'

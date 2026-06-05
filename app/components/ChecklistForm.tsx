@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useRef } from 'react'
 
@@ -35,7 +36,6 @@ function ItemCard({
   onChecksChange: (checks: string[]) => void
   onNotesChange: (notes: string) => void
 }) {
-  const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [checks, setChecks] = useState<string[]>([])
   const [notes, setNotes] = useState('')
@@ -43,7 +43,6 @@ function ItemCard({
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
-    setPhoto(file)
     if (file) {
       const url = URL.createObjectURL(file)
       setPreview(url)

@@ -93,7 +93,8 @@ Respond with JSON only. No other text.`,
     }
 
     return Response.json({ ok: true, ...result });
-  } catch (error: any) {
-    return Response.json({ ok: false, error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Review failed";
+    return Response.json({ ok: false, error: message });
   }
 }

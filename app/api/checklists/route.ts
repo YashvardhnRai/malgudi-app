@@ -20,7 +20,12 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  if (data?.length) return NextResponse.json(data)
+
+  const results = outletId
+    ? MOCK_CHECKLISTS.filter(c => c.outlet_id === outletId)
+    : MOCK_CHECKLISTS
+  return NextResponse.json(results)
 }
 
 export async function POST(request: NextRequest) {

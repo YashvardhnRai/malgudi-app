@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import { isSupabaseConfigured, getSupabaseServerClient } from '@/lib/supabase'
+import { getCeoEmails } from '@/lib/auth'
 
-const CEO_EMAILS = [
-  'yashvardhnrai@gmail.com',
-  'chandrashekharr05@gmail.com',
-]
+type ScheduleWithOutlet = {
+  outlet_id: string
+  label: string
+  outlets: {
+    name: string
+    manager_phone: string | null
+  } | null
+}
 
 function getISTHour(): number {
   const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
@@ -41,8 +46,8 @@ export async function GET() {
   const twoHoursAgo = getISTTwoHoursAgo()
   const results = []
 
-  for (const schedule of schedules) {
-    const outlet = schedule.outlets as any
+  for (const schedule of schedules as ScheduleWithOutlet[]) {
+    const outlet = schedule.outlets
     if (!outlet) continue
 
     const { data: photos } = await supabase
@@ -55,7 +60,7 @@ export async function GET() {
     const notifRows = []
 
     if (uploaded) {
-      for (const email of CEO_EMAILS) {
+      for (const email of getCeoEmails()) {
         notifRows.push({
           recipient_email: email,
           recipient_role: 'CEO',
@@ -68,7 +73,7 @@ export async function GET() {
         })
       }
     } else {
-      for (const email of CEO_EMAILS) {
+      for (const email of getCeoEmails()) {
         notifRows.push({
           recipient_email: email,
           recipient_role: 'CEO',

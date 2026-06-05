@@ -1,16 +1,26 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import NavHeader from "./NavHeader";
 import PhotoUpload from "./PhotoUpload";
+import type {
+  ChecklistSubmission,
+  Complaint,
+  DailySales,
+  Outlet,
+  PhotoUpload as PhotoUploadRow,
+  User,
+} from "@/lib/types";
 
 interface Props {
-  outlet: any;
-  photos: any[];
-  complaints: any[];
-  sales: any;
-  checklists: any[];
-  manager: any;
+  outlet: Outlet;
+  photos: PhotoUploadRow[];
+  complaints: Complaint[];
+  sales: DailySales | null;
+  checklists: ChecklistSubmission[];
+  manager: Pick<User, "name" | "phone" | "email"> | null;
 }
 
 export default function OutletDetail({
@@ -189,8 +199,8 @@ export default function OutletDetail({
           gap: 0,
           borderBottom: "1px solid rgba(255,255,255,0.1)",
           overflowX: "auto",
-          WebkitOverflowScrolling: "touch" as any,
-          scrollbarWidth: "none" as any,
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
         }}>
           {tabs.map(tab => (
             <button
@@ -323,7 +333,7 @@ export default function OutletDetail({
                   gridTemplateColumns: "repeat(3, 1fr)",
                   gap: 8,
                 }}>
-                  {photos.slice(0, 6).map((photo: any) => (
+                  {photos.slice(0, 6).map((photo) => (
                     <div
                       key={photo.id}
                       style={{
@@ -403,7 +413,7 @@ export default function OutletDetail({
                 gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
                 gap: 12,
               }}>
-                {photos.map((photo: any) => (
+                {photos.map((photo) => (
                   <div
                     key={photo.id}
                     style={{
@@ -477,7 +487,7 @@ export default function OutletDetail({
         {activeTab === "complaints" && (
           <div>
             {complaints.length > 0 ? (
-              complaints.map((complaint: any) => (
+              complaints.map((complaint) => (
                 <div
                   key={complaint.id}
                   style={{
@@ -676,7 +686,7 @@ export default function OutletDetail({
         {activeTab === "checklists" && (
           <div>
             {checklists.length > 0 ? (
-              checklists.map((cl: any) => (
+              checklists.map((cl) => (
                 <div key={cl.id} style={{
                   background: "#fff",
                   borderRadius: 16,

@@ -4,8 +4,6 @@ import Image from "next/image";
 
 export default function MalgudiLogo({
   size = 44,
-  color,
-  bgColor,
 }: {
   size?: number;
   color?: string;

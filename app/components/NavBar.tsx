@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase'
+import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import MalgudiLogo from '@/app/components/MalgudiLogo'
 
 interface Props {
@@ -23,7 +23,7 @@ export default function NavBar({ role = 'CEO', alertCount = 0, userName }: Props
 
   const handleSignOut = async () => {
     if (isSupabaseConfigured) {
-      const supabase = getSupabaseBrowserClient()
+      const supabase = createClient()
       await supabase.auth.signOut()
     }
     router.push('/auth')

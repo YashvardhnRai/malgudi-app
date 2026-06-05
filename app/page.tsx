@@ -6,16 +6,12 @@ import MalgudiLogo from "./components/MalgudiLogo";
 export default function LandingPage() {
   const router = useRouter();
   const [scrollY, setScrollY] = useState(0);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  if (!mounted) return null;
 
   return (
     <div style={{
