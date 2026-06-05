@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { getSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase";
+import { isCeoEmail } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
 type CreateUserBody = {
@@ -15,7 +18,56 @@ function getRedirectTo(request: NextRequest): string {
   return `${siteUrl.replace(/\/$/, "")}/auth/callback`;
 }
 
+async function requireCeoAccess() {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {
+          // API route cannot mutate the caller's auth cookies here.
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return NextResponse.json({ error: "Authentication required", users: [] }, { status: 401 });
+  }
+
+  if (isCeoEmail(user.email)) {
+    return null;
+  }
+
+  const { data: profile } = await getSupabaseServerClient()
+    .from("users")
+    .select("role")
+    .eq("email", user.email)
+    .maybeSingle<{ role: "CEO" | "MANAGER" | "STAFF" }>();
+
+  if (profile?.role === "CEO") {
+    return null;
+  }
+
+  return NextResponse.json({ error: "CEO access required", users: [] }, { status: 403 });
+}
+
 export async function GET() {
+  const denied = await requireCeoAccess();
+  if (denied) return denied;
+
   if (!isSupabaseConfigured) {
     return NextResponse.json({ users: [] });
   }
@@ -36,6 +88,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireCeoAccess();
+  if (denied) return denied;
+
   const body = (await request.json()) as CreateUserBody;
   const email = body.email?.trim().toLowerCase();
   const name = body.name?.trim();

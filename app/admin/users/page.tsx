@@ -1,312 +1,374 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import NavBar from '@/app/components/NavBar'
-import { isSupabaseConfigured } from '@/lib/supabase/client'
-import type { User, Outlet } from '@/lib/types'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Mail,
+  Phone,
+  Plus,
+  ShieldCheck,
+  Store,
+  UserPlus,
+  UsersRound,
+  X,
+} from "lucide-react";
+import NavHeader from "@/app/components/NavHeader";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import type { User, Outlet } from "@/lib/types";
 
-const ROLE_BADGE: Record<string, { bg: string; text: string }> = {
-  CEO: { bg: '#EFF6FF', text: '#1D4ED8' },
-  MANAGER: { bg: '#F0FDF4', text: '#15803D' },
-  STAFF: { bg: '#F9FAFB', text: '#6B7280' },
-}
+const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  CEO: { bg: "#E7F4F8", text: "#1F696F", label: "CEO" },
+  MANAGER: { bg: "#E8F7EF", text: "#087F5B", label: "Manager" },
+  STAFF: { bg: "#F7F3EB", text: "#667085", label: "Staff" },
+};
 
 interface NewUserForm {
-  name: string
-  email: string
-  phone: string
-  role: 'MANAGER' | 'STAFF'
-  outlet_id: string
+  name: string;
+  email: string;
+  phone: string;
+  role: "MANAGER" | "STAFF";
+  outlet_id: string;
 }
 
-export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [outlets, setOutlets] = useState<Outlet[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [formError, setFormError] = useState('')
-  const [form, setForm] = useState<NewUserForm>({
-    name: '',
-    email: '',
-    phone: '',
-    role: 'MANAGER',
-    outlet_id: '',
-  })
+const EMPTY_FORM: NewUserForm = {
+  name: "",
+  email: "",
+  phone: "",
+  role: "MANAGER",
+  outlet_id: "",
+};
 
-  async function load() {
+export default function AdminUsersPage() {
+  const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [formError, setFormError] = useState("");
+  const [form, setForm] = useState<NewUserForm>(EMPTY_FORM);
+
+  const load = useCallback(async () => {
     try {
-      const [usersRes, outletRes] = await Promise.all([
-        fetch('/api/users').then(r => r.json()),
-        fetch('/api/outlets').then(r => r.json()),
-      ])
-      setUsers((usersRes.users as User[]) ?? [])
-      setOutlets(outletRes.outlets ?? [])
+      const [usersResponse, outletsResponse] = await Promise.all([
+        fetch("/api/users"),
+        fetch("/api/outlets"),
+      ]);
+
+      if (usersResponse.status === 401 || usersResponse.status === 403) {
+        router.replace("/auth");
+        return;
+      }
+
+      const usersPayload = await usersResponse.json();
+      const outletsPayload = await outletsResponse.json();
+      const nextUsers = (usersPayload.users as User[]) ?? [];
+      const nextOutlets = (outletsPayload.outlets as Outlet[]) ?? [];
+      setUsers(nextUsers);
+      setOutlets(nextOutlets);
+      setForm((current) => ({
+        ...current,
+        outlet_id: current.outlet_id || nextOutlets[0]?.id || "",
+      }));
     } catch {
-      // noop
+      // Keep the admin surface available even if a backend call fails.
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  }, [router]);
 
   useEffect(() => {
     queueMicrotask(() => {
-      void load()
-    })
-  }, [])
+      void load();
+    });
+  }, [load]);
 
-  async function handleAddUser(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitting(true)
-    setFormError('')
+  async function handleAddUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setFormError("");
+    setSuccess("");
+
+    if (!form.outlet_id) {
+      setFormError("Select an outlet before adding this user.");
+      setSubmitting(false);
+      return;
+    }
 
     if (!isSupabaseConfigured) {
-      setSuccess(`Demo: Would create ${form.role} account for ${form.email}`)
-      setShowForm(false)
-      setSubmitting(false)
-      return
+      const demoUser: User = {
+        id: `demo-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        name: form.name,
+        email: form.email,
+        phone: form.phone || null,
+        role: form.role,
+        outlet_id: form.outlet_id,
+      };
+      setUsers((current) => [demoUser, ...current]);
+      setSuccess(`Demo user ${form.name} added locally.`);
+      setForm({ ...EMPTY_FORM, outlet_id: outlets[0]?.id || "" });
+      setShowForm(false);
+      setSubmitting(false);
+      return;
     }
 
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error ?? 'Failed to add user')
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Failed to add user");
 
       setSuccess(
         result.inviteWarning
           ? `${form.name} added. Invite warning: ${result.inviteWarning}`
-          : `✓ ${form.name} added and invite sent to ${form.email}`
-      )
-      setShowForm(false)
-      setForm({ name: '', email: '', phone: '', role: 'MANAGER', outlet_id: '' })
-      await load()
-    } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Failed to add user')
+          : `${form.name} added and invite sent to ${form.email}`
+      );
+      setShowForm(false);
+      setForm({ ...EMPTY_FORM, outlet_id: outlets[0]?.id || "" });
+      await load();
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : "Failed to add user");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
   const outletName = (id: string | null) =>
-    outlets.find(o => o.id === id)?.name ?? '—'
+    outlets.find((outlet) => outlet.id === id)?.name ?? "Unassigned";
+
+  const counts = useMemo(() => {
+    const managers = users.filter((user) => user.role === "MANAGER").length;
+    const staff = users.filter((user) => user.role === "STAFF").length;
+    return { managers, staff };
+  }, [users]);
 
   return (
-    <div className="min-h-screen bg-app-bg">
-      <NavBar role="CEO" />
+    <div className="admin-page">
+      <NavHeader userName="CEO" />
 
-      <main className="max-w-4xl mx-auto px-4 py-5 pb-10">
-        <div className="flex items-center justify-between mb-6">
+      <main className="admin-main">
+        <section className="admin-hero">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: '#1B2B5E' }}>
-              User Management
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">CEO access only · {users.length} users</p>
+            <span className="admin-kicker">
+              <ShieldCheck size={14} />
+              Access control
+            </span>
+            <h1>User management</h1>
+            <p>
+              Add managers and staff, connect them to outlets, and send invite links
+              from one controlled desk.
+            </p>
+          </div>
+
+          <div className="admin-stat-grid">
+            <div className="admin-stat">
+              <UsersRound size={18} />
+              <span>Total users</span>
+              <strong>{users.length}</strong>
+            </div>
+            <div className="admin-stat">
+              <Store size={18} />
+              <span>Managers</span>
+              <strong>{counts.managers}</strong>
+            </div>
+            <div className="admin-stat">
+              <UserPlus size={18} />
+              <span>Staff</span>
+              <strong>{counts.staff}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="admin-toolbar">
+          <div>
+            <span>Team directory</span>
+            <strong>{loading ? "Loading users" : `${users.length} active profile${users.length === 1 ? "" : "s"}`}</strong>
           </div>
           <button
-            onClick={() => { setShowForm(true); setSuccess(''); setFormError('') }}
-            className="px-4 py-2.5 rounded-xl text-sm font-bold transition-colors"
-            style={{ backgroundColor: '#F4A623', color: '#1B2B5E' }}
+            type="button"
+            onClick={() => {
+              setShowForm(true);
+              setSuccess("");
+              setFormError("");
+            }}
           >
-            + Add User
+            <Plus size={17} />
+            Add user
           </button>
-        </div>
+        </section>
 
         {success && (
-          <div
-            className="rounded-xl p-4 mb-4"
-            style={{ backgroundColor: '#F0FDF4', border: '1px solid #86EFAC', borderLeft: '4px solid #22C55E' }}
-          >
-            <p className="text-sm font-medium" style={{ color: '#15803D' }}>{success}</p>
+          <div className="admin-notice success">
+            <CheckCircle2 size={17} />
+            {success}
           </div>
         )}
 
         {!isSupabaseConfigured && (
-          <div
-            className="rounded-xl p-4 mb-6"
-            style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}
-          >
-            <p className="text-sm font-medium text-amber-800">Demo Mode</p>
-            <p className="text-xs text-amber-700 mt-1">
-              Supabase not configured. User data is not available.
-            </p>
+          <div className="admin-notice warning">
+            <AlertTriangle size={17} />
+            Demo mode is active. Added users stay local until Supabase is configured.
           </div>
         )}
 
-        {/* Add User Form */}
         {showForm && (
-          <div
-            className="rounded-2xl p-6 mb-6"
-            style={{ backgroundColor: '#FFFFFF', boxShadow: '0 2px 8px rgba(27,43,94,0.1)', border: '1px solid #E5E7EB' }}
-          >
-            <h2 className="text-lg font-bold mb-4" style={{ color: '#1B2B5E' }}>Add New User</h2>
-            <form onSubmit={handleAddUser} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 outline-none focus:border-[#1B2B5E]"
-                    placeholder="Ramesh Kumar"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 outline-none focus:border-[#1B2B5E]"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-              </div>
+          <section className="admin-form-card">
+            <div className="admin-form-head">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                  Email *
-                </label>
+                <span>Add user</span>
+                <h2>Invite a team member</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                aria-label="Close add user form"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddUser} className="admin-form-grid">
+              <label>
+                <span>Full name</span>
+                <input
+                  type="text"
+                  required
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Ramesh Kumar"
+                />
+              </label>
+
+              <label>
+                <span>Email</span>
                 <input
                   type="email"
                   required
                   value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 outline-none focus:border-[#1B2B5E]"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, email: event.target.value }))
+                  }
                   placeholder="ramesh@malgudi.in"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                    Role *
-                  </label>
-                  <select
-                    value={form.role}
-                    onChange={e => setForm(f => ({ ...f, role: e.target.value as 'MANAGER' | 'STAFF' }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 outline-none focus:border-[#1B2B5E] bg-white"
-                  >
-                    <option value="MANAGER">Manager</option>
-                    <option value="STAFF">Staff</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                    Outlet *
-                  </label>
-                  <select
-                    value={form.outlet_id}
-                    onChange={e => setForm(f => ({ ...f, outlet_id: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 outline-none focus:border-[#1B2B5E] bg-white"
-                    required
-                  >
-                    <option value="">Select outlet…</option>
-                    {outlets.map(o => (
-                      <option key={o.id} value={o.id}>{o.name} ({o.city})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              </label>
 
-              {formError && (
-                <p className="text-xs text-red-600">{formError}</p>
-              )}
+              <label>
+                <span>Phone</span>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, phone: event.target.value }))
+                  }
+                  placeholder="+91 98765 43210"
+                />
+              </label>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: '#1B2B5E', color: '#FFFFFF' }}
+              <label>
+                <span>Role</span>
+                <select
+                  value={form.role}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      role: event.target.value as "MANAGER" | "STAFF",
+                    }))
+                  }
                 >
-                  {submitting ? 'Adding...' : 'Add User & Send Invite'}
+                  <option value="MANAGER">Manager</option>
+                  <option value="STAFF">Staff</option>
+                </select>
+              </label>
+
+              <label className="admin-form-wide">
+                <span>Outlet</span>
+                <select
+                  value={form.outlet_id}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, outlet_id: event.target.value }))
+                  }
+                  required
+                >
+                  <option value="">Select outlet</option>
+                  {outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name} - {outlet.city}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {formError && <div className="admin-form-error">{formError}</div>}
+
+              <div className="admin-form-actions">
+                <button type="submit" disabled={submitting}>
+                  <UserPlus size={17} />
+                  {submitting ? "Adding user" : "Add user and send invite"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-6 py-3 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                >
+                <button type="button" onClick={() => setShowForm(false)}>
                   Cancel
                 </button>
               </div>
             </form>
-          </div>
+          </section>
         )}
 
-        {/* Users Table */}
         {loading ? (
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl h-16 animate-pulse border border-gray-100" />
+          <section className="admin-users-grid">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="admin-user-card skeleton" />
             ))}
-          </div>
+          </section>
         ) : users.length === 0 ? (
-          <div
-            className="rounded-2xl p-8 text-center"
-            style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
-          >
-            <p className="text-gray-500 text-sm">No users yet. Add your first user above.</p>
-          </div>
+          <section className="admin-empty">
+            <UsersRound size={34} />
+            <strong>No users yet</strong>
+            <span>Add the first manager or staff profile to begin assigning access.</span>
+          </section>
         ) : (
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{ backgroundColor: '#FFFFFF', boxShadow: '0 2px 8px rgba(27,43,94,0.08)', border: '1px solid #E5E7EB' }}
-          >
-            <table className="w-full">
-              <thead>
-                <tr style={{ backgroundColor: '#F8F7F4', borderBottom: '1px solid #E5E7EB' }}>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Role</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Outlet</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500">Phone</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user, i) => {
-                  const roleBadge = ROLE_BADGE[user.role] ?? ROLE_BADGE.STAFF
-                  return (
-                    <tr
-                      key={user.id}
-                      style={{ borderBottom: i < users.length - 1 ? '1px solid #F3F4F6' : 'none' }}
-                    >
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-semibold" style={{ color: '#1B2B5E' }}>{user.name}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className="text-xs font-bold px-2 py-1 rounded-md"
-                          style={{ backgroundColor: roleBadge.bg, color: roleBadge.text }}
-                        >
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{outletName(user.outlet_id)}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{user.phone ?? '—'}</p>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <section className="admin-users-grid">
+            {users.map((user) => {
+              const badge = ROLE_BADGE[user.role] ?? ROLE_BADGE.STAFF;
+              return (
+                <article key={user.id} className="admin-user-card">
+                  <div className="admin-user-avatar">
+                    {user.name?.[0]?.toUpperCase() || user.email[0]?.toUpperCase() || "M"}
+                  </div>
+                  <div className="admin-user-main">
+                    <div className="admin-user-title">
+                      <strong>{user.name}</strong>
+                      <span style={{ background: badge.bg, color: badge.text }}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <p>
+                      <Mail size={14} />
+                      {user.email}
+                    </p>
+                    <p>
+                      <Store size={14} />
+                      {outletName(user.outlet_id)}
+                    </p>
+                    <p>
+                      <Phone size={14} />
+                      {user.phone || "No phone number"}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
         )}
       </main>
     </div>
-  )
+  );
 }
