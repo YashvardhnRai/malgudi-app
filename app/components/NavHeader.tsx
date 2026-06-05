@@ -10,6 +10,7 @@ import {
   LogOut,
   MessageSquareWarning,
   PhoneCall,
+  QrCode,
   UserRound,
   X,
 } from "lucide-react";
@@ -141,6 +142,10 @@ export default function NavHeader({ userName }: { userName: string }) {
       </button>
 
       <div className="premium-nav-center">
+        <Link href="/launch">
+          <QrCode size={15} />
+          Launch
+        </Link>
         <Link href="/complaints">
           <MessageSquareWarning size={15} />
           Complaints

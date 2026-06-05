@@ -194,6 +194,7 @@ export default function WorkerPage() {
         </section>
 
         <div className="worker-footer-links">
+          <Link href="/launch">Launch kit</Link>
           <Link href="/auth">CEO sign in</Link>
           <Link href="/dashboard">Dashboard</Link>
         </div>

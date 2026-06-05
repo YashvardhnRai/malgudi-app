@@ -1,6 +1,7 @@
 const CACHE_NAME = 'malgudi-worker-v1'
 const STATIC_ASSETS = [
   '/worker',
+  '/launch',
   '/auth',
   '/manifest.json',
   '/icon-192.png',

@@ -153,6 +153,7 @@ export default function UploadPage() {
     try {
       const response = await fetch('/api/photos', { method: 'POST', body: formData })
       const data = (await response.json()) as UploadResult
+      if (!response.ok) throw new Error('Upload failed')
       setResult(data)
       setState('done')
     } catch {

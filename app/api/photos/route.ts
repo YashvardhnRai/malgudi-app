@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { isSupabaseConfigured, getSupabaseServerClient } from '@/lib/supabase'
 
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024
+const ALLOWED_CATEGORIES = new Set([
+  'FOOD_QUALITY',
+  'BANMARIE',
+  'CLEANLINESS',
+  'RAW_MATERIAL',
+  'CLOSING',
+  'DISH_AUDIT',
+])
+
 const ANALYSIS_PROMPT = `You are a food quality inspector for Malgudi, a premium South Indian restaurant chain by Shankar Mahadevan.
 Analyse this food/kitchen photo and check for quality issues. Look for:
 - Food that looks undercooked, overcooked, contaminated, or old
@@ -51,17 +61,43 @@ async function analyseWithClaude(imageBase64: string, mediaType: string): Promis
 }
 
 export async function POST(request: NextRequest) {
-  const formData = await request.formData()
+  let formData: FormData
+  try {
+    formData = await request.formData()
+  } catch {
+    return NextResponse.json(
+      { error: 'Multipart form data is required' },
+      { status: 400 }
+    )
+  }
+
   const photos = formData.getAll('photos') as File[]
   const category = formData.get('category') as string
   const caption = formData.get('caption') as string
   const outletId = formData.get('outlet_id') as string
+
+  if (!outletId) {
+    return NextResponse.json({ error: 'Outlet is required' }, { status: 400 })
+  }
+
+  if (!ALLOWED_CATEGORIES.has(category)) {
+    return NextResponse.json({ error: 'Invalid photo category' }, { status: 400 })
+  }
 
   if (!photos.length) {
     return NextResponse.json({ error: 'No photos provided' }, { status: 400 })
   }
 
   const photo = photos[0]
+
+  if (!photo.type.startsWith('image/')) {
+    return NextResponse.json({ error: 'Only image uploads are allowed' }, { status: 400 })
+  }
+
+  if (photo.size > MAX_PHOTO_BYTES) {
+    return NextResponse.json({ error: 'Photo must be under 8 MB' }, { status: 413 })
+  }
+
   const bytes = await photo.arrayBuffer()
   const buffer = Buffer.from(bytes)
   const base64 = buffer.toString('base64')
@@ -81,7 +117,8 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseServerClient()
 
-    const fileName = `${outletId}/${Date.now()}-${photo.name}`
+    const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+    const fileName = `${outletId}/${Date.now()}-${safeName}`
     const { data: storageData, error: storageError } = await supabase.storage
       .from('photos')
       .upload(fileName, buffer, { contentType: mediaType, upsert: false })
@@ -120,10 +157,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (err) {
     console.error('photo upload error:', err)
-    return NextResponse.json({
-      url: '',
-      aiStatus: aiResult.status,
-      aiNotes: aiResult.notes,
-    })
+    return NextResponse.json({ error: 'Upload could not be saved' }, { status: 500 })
   }
 }
