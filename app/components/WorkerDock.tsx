@@ -47,10 +47,10 @@ export default function WorkerDock({ outletId, managerPhone }: Props) {
       active: pathname === '/upload',
     },
     {
-      href: '/complaints',
+      href: '/report',
       label: 'Issues',
       Icon: MessageSquareWarning,
-      active: pathname === '/complaints',
+      active: pathname === '/report',
     },
   ]
 

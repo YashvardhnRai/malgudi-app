@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -54,6 +54,22 @@ function getGreeting() {
     timeZone: 'Asia/Kolkata',
   })
   return { text, date }
+}
+
+function timeAgo(value: string | null) {
+  if (!value) return 'Awaiting next update'
+  const milliseconds = new Date(value).getTime()
+  if (!Number.isFinite(milliseconds)) return value
+  const minutes = Math.max(0, Math.floor((Date.now() - milliseconds) / 60_000))
+  if (minutes < 1) return 'Updated just now'
+  if (minutes < 60) return `Updated ${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Updated ${hours}h ago`
+  return `Updated ${Math.floor(hours / 24)}d ago`
+}
+
+function cleanOperationalMessage(message: string) {
+  return message.replace(/\s*\[slot:[^\]]+\]\[date:[^\]]+\]\s*$/, '')
 }
 
 const STATUS_STYLE: Record<
@@ -224,7 +240,7 @@ function OutletCard({
       </div>
 
       <div className="ops-outlet-footer">
-        <span>{outlet.last_update || 'Awaiting next update'}</span>
+        <span>{timeAgo(outlet.last_update)}</span>
         <div className="ops-outlet-actions">
           <button
             type="button"
@@ -268,6 +284,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [reviewOutletId, setReviewOutletId] = useState<string | null>(null)
   const [presenceByOutlet, setPresenceByOutlet] = useState<Record<string, ManagerPresenceSummary>>({})
   const { text: greeting, date } = getGreeting()
@@ -283,12 +300,42 @@ export default function CEODashboard({ userName }: { userName: string }) {
     return () => subscription.unsubscribe()
   }, [router])
 
-  useEffect(() => {
-    fetch('/api/outlets')
-      .then((r) => r.json())
-      .then((d: DashboardSummary) => setData(d))
-      .finally(() => setLoading(false))
+  const loadDashboard = useCallback(async () => {
+    try {
+      const response = await fetch('/api/outlets', { cache: 'no-store' })
+      const payload = (await response.json()) as DashboardSummary & { error?: string }
+      if (!response.ok) throw new Error(payload.error || 'Operations data is unavailable')
+      setData(payload)
+      setLoadError('')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Operations data is unavailable')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => void loadDashboard())
+    const interval = window.setInterval(() => void loadDashboard(), 60_000)
+    return () => window.clearInterval(interval)
+  }, [loadDashboard])
+
+  useEffect(() => {
+    const runReminderCheck = async () => {
+      if (document.visibilityState !== 'visible') return
+      const response = await fetch('/api/check-uploads', { cache: 'no-store' }).catch(
+        () => null
+      )
+      if (response?.ok) {
+        const result = (await response.json()) as { reminders?: number }
+        if (result.reminders) void loadDashboard()
+      }
+    }
+
+    queueMicrotask(() => void runReminderCheck())
+    const interval = window.setInterval(() => void runReminderCheck(), 10 * 60_000)
+    return () => window.clearInterval(interval)
+  }, [loadDashboard])
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -428,6 +475,19 @@ export default function CEODashboard({ userName }: { userName: string }) {
               ))}
         </section>
 
+        {loadError && (
+          <section className="ops-data-error" role="alert">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Live operations data is unavailable</strong>
+              <span>{loadError}</span>
+            </div>
+            <button type="button" onClick={() => void loadDashboard()}>
+              Retry
+            </button>
+          </section>
+        )}
+
         <section className={`ops-live-strip ${onlineManagers.length ? 'has-online' : ''}`}>
           <div className="ops-live-heading">
             <span>
@@ -477,7 +537,10 @@ export default function CEODashboard({ userName }: { userName: string }) {
                   : null
                 return (
                   <div key={alert.id} className="ops-alert-item">
-                    <span>{outlet ? `${outlet.name}: ` : ''}{alert.message}</span>
+                    <span>
+                      {outlet ? `${outlet.name}: ` : ''}
+                      {cleanOperationalMessage(alert.message)}
+                    </span>
                     {outlet?.manager_phone && (
                       <a href={`tel:${outlet.manager_phone}`} aria-label={`Call ${outlet.name} manager`}>
                         <PhoneCall size={14} />

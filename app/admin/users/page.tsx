@@ -6,10 +6,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   Mail,
+  MailCheck,
+  Pencil,
   Phone,
   Plus,
   ShieldCheck,
   Store,
+  Trash2,
   UserPlus,
   UsersRound,
   X,
@@ -32,6 +35,15 @@ interface NewUserForm {
   outlet_id: string;
 }
 
+interface AuditEvent {
+  id: string;
+  action: string;
+  actor_email: string;
+  actor_role: string;
+  outlet_id: string | null;
+  created_at: string;
+}
+
 const EMPTY_FORM: NewUserForm = {
   name: "",
   email: "",
@@ -50,12 +62,17 @@ export default function AdminUsersPage() {
   const [success, setSuccess] = useState("");
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState<NewUserForm>(EMPTY_FORM);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [actionUserId, setActionUserId] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [usersResponse, outletsResponse] = await Promise.all([
+      const [usersResponse, outletsResponse, auditResponse] = await Promise.all([
         fetch("/api/users"),
         fetch("/api/outlets"),
+        fetch("/api/audit"),
       ]);
 
       if (usersResponse.status === 401 || usersResponse.status === 403) {
@@ -65,10 +82,12 @@ export default function AdminUsersPage() {
 
       const usersPayload = await usersResponse.json();
       const outletsPayload = await outletsResponse.json();
+      const auditPayload = await auditResponse.json();
       const nextUsers = (usersPayload.users as User[]) ?? [];
       const nextOutlets = (outletsPayload.outlets as Outlet[]) ?? [];
       setUsers(nextUsers);
       setOutlets(nextOutlets);
+      setAuditEvents((auditPayload.events as AuditEvent[]) ?? []);
       setForm((current) => ({
         ...current,
         outlet_id: current.outlet_id || nextOutlets[0]?.id || "",
@@ -117,8 +136,10 @@ export default function AdminUsersPage() {
     }
 
     try {
-      const response = await fetch("/api/users", {
-        method: "POST",
+      const response = await fetch(
+        editingUserId ? `/api/users/${editingUserId}` : "/api/users",
+        {
+        method: editingUserId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
@@ -126,17 +147,68 @@ export default function AdminUsersPage() {
       if (!response.ok) throw new Error(result.error ?? "Failed to add user");
 
       setSuccess(
-        result.inviteWarning
+        editingUserId
+          ? `${form.name} updated.`
+          : result.inviteWarning
           ? `${form.name} added. Invite warning: ${result.inviteWarning}`
           : `${form.name} added and invite sent to ${form.email}`
       );
       setShowForm(false);
+      setEditingUserId(null);
       setForm({ ...EMPTY_FORM, outlet_id: outlets[0]?.id || "" });
       await load();
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : "Failed to add user");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function startEdit(user: User) {
+    setEditingUserId(user.id);
+    setForm({
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      role: user.role === "MANAGER" ? "MANAGER" : "STAFF",
+      outlet_id: user.outlet_id || outlets[0]?.id || "",
+    });
+    setFormError("");
+    setSuccess("");
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function resendInvite(user: User) {
+    setActionUserId(user.id);
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/users/${user.id}/invite`, { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Invite failed");
+      setSuccess(`Invite sent again to ${user.email}.`);
+      await load();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Invite failed");
+    } finally {
+      setActionUserId(null);
+    }
+  }
+
+  async function removeUser(user: User) {
+    setActionUserId(user.id);
+    setFormError("");
+    try {
+      const response = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Removal failed");
+      setPendingDeleteId(null);
+      setSuccess(`${user.name} removed from Malgudi access.`);
+      await load();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Removal failed");
+    } finally {
+      setActionUserId(null);
     }
   }
 
@@ -195,6 +267,8 @@ export default function AdminUsersPage() {
             type="button"
             onClick={() => {
               setShowForm(true);
+              setEditingUserId(null);
+              setForm({ ...EMPTY_FORM, outlet_id: outlets[0]?.id || "" });
               setSuccess("");
               setFormError("");
             }}
@@ -222,8 +296,8 @@ export default function AdminUsersPage() {
           <section className="admin-form-card">
             <div className="admin-form-head">
               <div>
-                <span>Add user</span>
-                <h2>Invite a team member</h2>
+                <span>{editingUserId ? "Edit access" : "Add user"}</span>
+                <h2>{editingUserId ? "Update team member" : "Invite a team member"}</h2>
               </div>
               <button
                 type="button"
@@ -253,6 +327,7 @@ export default function AdminUsersPage() {
                 <input
                   type="email"
                   required
+                  disabled={Boolean(editingUserId)}
                   value={form.email}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, email: event.target.value }))
@@ -312,7 +387,11 @@ export default function AdminUsersPage() {
               <div className="admin-form-actions">
                 <button type="submit" disabled={submitting}>
                   <UserPlus size={17} />
-                  {submitting ? "Adding user" : "Add user and send invite"}
+                  {submitting
+                    ? "Saving"
+                    : editingUserId
+                    ? "Save changes"
+                    : "Add user and send invite"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}>
                   Cancel
@@ -362,12 +441,82 @@ export default function AdminUsersPage() {
                       <Phone size={14} />
                       {user.phone || "No phone number"}
                     </p>
+                    <div className="admin-user-actions">
+                      <button type="button" onClick={() => startEdit(user)} title="Edit user">
+                        <Pencil size={15} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void resendInvite(user)}
+                        disabled={actionUserId === user.id}
+                        title="Resend invite"
+                      >
+                        <MailCheck size={15} />
+                        Invite
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => setPendingDeleteId(user.id)}
+                        title="Remove user"
+                      >
+                        <Trash2 size={15} />
+                        Remove
+                      </button>
+                    </div>
+                    {pendingDeleteId === user.id && (
+                      <div className="admin-delete-confirm">
+                        <span>Remove access for {user.name}?</span>
+                        <button
+                          type="button"
+                          onClick={() => void removeUser(user)}
+                          disabled={actionUserId === user.id}
+                        >
+                          Confirm
+                        </button>
+                        <button type="button" onClick={() => setPendingDeleteId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </article>
               );
             })}
           </section>
         )}
+
+        <section className="admin-audit">
+          <div className="admin-audit-head">
+            <div>
+              <span>Accountability</span>
+              <h2>Recent access activity</h2>
+            </div>
+            <ShieldCheck size={20} />
+          </div>
+          {auditEvents.length ? (
+            <div className="admin-audit-list">
+              {auditEvents.slice(0, 12).map((event) => (
+                <div key={event.id}>
+                  <strong>{event.action.replaceAll("_", " ").toLowerCase()}</strong>
+                  <span>{event.actor_email}</span>
+                  <time dateTime={event.created_at}>
+                    {new Date(event.created_at).toLocaleString("en-IN", {
+                      timeZone: "Asia/Kolkata",
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="admin-audit-empty">No recorded changes yet.</div>
+          )}
+        </section>
       </main>
     </div>
   );

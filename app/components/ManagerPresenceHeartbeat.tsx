@@ -12,11 +12,13 @@ import {
 type PresenceState = 'idle' | 'connecting' | 'online' | 'offline'
 
 type Props = {
+  enabled?: boolean
   outletId: string
   outletName?: string | null
   outletCity?: string | null
   managerName?: string | null
   managerPhone?: string | null
+  userEmail?: string | null
 }
 
 function getManagerDeviceId() {
@@ -33,14 +35,16 @@ function getManagerDeviceId() {
 }
 
 export default function ManagerPresenceHeartbeat({
+  enabled = true,
   outletId,
   outletName,
   outletCity,
   managerName,
   managerPhone,
+  userEmail,
 }: Props) {
   const [state, setState] = useState<PresenceState>(
-    isSupabaseConfigured ? 'connecting' : 'offline'
+    isSupabaseConfigured && enabled ? 'connecting' : 'offline'
   )
 
   const displayState = useMemo(() => {
@@ -51,7 +55,7 @@ export default function ManagerPresenceHeartbeat({
   }, [state])
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !outletId) return
+    if (!enabled || !isSupabaseConfigured || !outletId) return
 
     let closed = false
     let intervalId: number | null = null
@@ -80,9 +84,9 @@ export default function ManagerPresenceHeartbeat({
         outlet_id: outletId,
         outlet_name: outletName || 'Outlet',
         outlet_city: outletCity || '',
-        manager_name: managerName || user?.email || 'Manager',
+        manager_name: managerName || userEmail || user?.email || 'Manager',
         manager_phone: managerPhone || null,
-        user_email: user?.email ?? null,
+        user_email: userEmail || user?.email || null,
         device_id: deviceId,
         route: window.location.pathname,
         online_at: onlineAt,
@@ -121,7 +125,17 @@ export default function ManagerPresenceHeartbeat({
       void channel.untrack()
       void supabase.removeChannel(channel)
     }
-  }, [managerName, managerPhone, outletCity, outletId, outletName])
+  }, [
+    enabled,
+    managerName,
+    managerPhone,
+    outletCity,
+    outletId,
+    outletName,
+    userEmail,
+  ])
+
+  if (!enabled) return null
 
   return (
     <div className={`manager-presence-pill is-${state}`}>

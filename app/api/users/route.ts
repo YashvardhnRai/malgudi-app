@@ -1,152 +1,114 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { getSupabaseServerClient, isSupabaseConfigured } from "@/lib/supabase";
-import { isCeoEmail } from "@/lib/auth";
-import type { User } from "@/lib/types";
+import { NextRequest, NextResponse } from 'next/server'
+import { enforceRateLimit, readJsonBody, requireSameOrigin } from '@/lib/api-security'
+import { writeAuditEvent } from '@/lib/audit'
+import { authorizeApi } from '@/lib/auth-server'
+import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
+import { cleanText, isEmail, isUuid } from '@/lib/validation'
 
 type CreateUserBody = {
-  name?: string;
-  email?: string;
-  phone?: string;
-  role?: "MANAGER" | "STAFF";
-  outlet_id?: string;
-};
-
-function getRedirectTo(request: NextRequest): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
-  return `${siteUrl.replace(/\/$/, "")}/auth/callback`;
+  name?: unknown
+  email?: unknown
+  phone?: unknown
+  role?: unknown
+  outlet_id?: unknown
 }
 
-async function requireCeoAccess() {
-  if (!isSupabaseConfigured) {
-    return null;
-  }
-
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // API route cannot mutate the caller's auth cookies here.
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return NextResponse.json({ error: "Authentication required", users: [] }, { status: 401 });
-  }
-
-  if (isCeoEmail(user.email)) {
-    return null;
-  }
-
-  const { data: profile } = await getSupabaseServerClient()
-    .from("users")
-    .select("role")
-    .eq("email", user.email)
-    .maybeSingle<{ role: "CEO" | "MANAGER" | "STAFF" }>();
-
-  if (profile?.role === "CEO") {
-    return null;
-  }
-
-  return NextResponse.json({ error: "CEO access required", users: [] }, { status: 403 });
+function getRedirectTo(request: NextRequest) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+  return `${siteUrl.replace(/\/$/, '')}/auth/callback`
 }
 
 export async function GET() {
-  const denied = await requireCeoAccess();
-  if (denied) return denied;
+  const { actor, response } = await authorizeApi({ roles: ['CEO'] })
+  if (response || !actor) return response
+  if (!isSupabaseConfigured) return NextResponse.json({ users: [] })
 
-  if (!isSupabaseConfigured) {
-    return NextResponse.json({ users: [] });
+  const { data, error } = await getSupabaseServerClient()
+    .from('users')
+    .select('*')
+    .neq('role', 'CEO')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return NextResponse.json({ error: 'Unable to load users', users: [] }, { status: 503 })
   }
-
-  try {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-    return NextResponse.json({ users: data ?? [] });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to load users";
-    return NextResponse.json({ error: message, users: [] }, { status: 500 });
-  }
+  return NextResponse.json({ users: data ?? [] })
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await requireCeoAccess();
-  if (denied) return denied;
+  const originError = requireSameOrigin(request)
+  if (originError) return originError
+  const rateError = enforceRateLimit(request, 'users:create', 10, 60_000)
+  if (rateError) return rateError
 
-  const body = (await request.json()) as CreateUserBody;
-  const email = body.email?.trim().toLowerCase();
-  const name = body.name?.trim();
+  const { actor, response } = await authorizeApi({ roles: ['CEO'] })
+  if (response || !actor) return response
 
-  if (!name || !email || !body.role || !body.outlet_id) {
+  const parsed = await readJsonBody<CreateUserBody>(request)
+  if (parsed.response || !parsed.data) return parsed.response
+  const body = parsed.data
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const name = cleanText(body.name, 100)
+  const phone = cleanText(body.phone, 30)
+  const role = body.role === 'MANAGER' || body.role === 'STAFF' ? body.role : null
+  const outletId = body.outlet_id
+
+  if (!name || !isEmail(email) || !role || !isUuid(outletId)) {
     return NextResponse.json(
-      { error: "Name, email, role, and outlet are required." },
+      { error: 'Valid name, email, role, and outlet are required' },
       { status: 400 }
-    );
+    )
   }
-
-  const row = {
-    name,
-    email,
-    phone: body.phone?.trim() || null,
-    role: body.role,
-    outlet_id: body.outlet_id,
-  } satisfies Omit<User, "id" | "created_at">;
-
   if (!isSupabaseConfigured) {
-    return NextResponse.json(
-      {
-        user: {
-          id: `demo-${Date.now()}`,
-          created_at: new Date().toISOString(),
-          ...row,
-        },
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ error: 'Restaurant data service is unavailable' }, { status: 503 })
   }
 
-  try {
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("users")
-      .insert(row)
-      .select()
-      .single();
+  const supabase = getSupabaseServerClient()
+  const { data: outlet } = await supabase
+    .from('outlets')
+    .select('id')
+    .eq('id', outletId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (!outlet) {
+    return NextResponse.json({ error: 'Active outlet not found' }, { status: 400 })
+  }
 
-    if (error) throw error;
-
-    const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      name,
       email,
-      { redirectTo: getRedirectTo(request) }
-    );
+      phone: phone || null,
+      role,
+      outlet_id: outletId,
+    })
+    .select()
+    .single()
 
+  if (error) {
+    const duplicate = error.code === '23505'
     return NextResponse.json(
-      {
-        user: data,
-        inviteWarning: inviteError?.message ?? null,
-      },
-      { status: 201 }
-    );
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to add user";
-    return NextResponse.json({ error: message }, { status: 400 });
+      { error: duplicate ? 'A user with this email already exists' : 'Unable to add user' },
+      { status: duplicate ? 409 : 400 }
+    )
   }
+
+  const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: getRedirectTo(request),
+    data: { name, role, outlet_id: outletId },
+  })
+
+  await writeAuditEvent({
+    actor,
+    action: 'USER_CREATED',
+    outletId,
+    target: data.id,
+    detail: { email, role, invite_sent: !inviteError },
+  })
+
+  return NextResponse.json(
+    { user: data, inviteWarning: inviteError?.message ?? null },
+    { status: 201 }
+  )
 }

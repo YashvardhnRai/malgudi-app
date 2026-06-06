@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import ServiceWorkerRegistration from '@/app/components/ServiceWorkerRegistration'
+import OfflineUploadSync from '@/app/components/OfflineUploadSync'
 import './globals.css'
 
 const inter = Inter({
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full bg-app-bg">
         <ServiceWorkerRegistration />
+        <OfflineUploadSync />
         {children}
       </body>
     </html>

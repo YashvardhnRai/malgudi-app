@@ -25,9 +25,14 @@ export default function AuthPage() {
 
     try {
       const supabase = createClient()
+      const requestedNext = new URLSearchParams(window.location.search).get('next')
+      const callbackUrl = new URL('/auth/callback', window.location.origin)
+      if (requestedNext?.startsWith('/') && !requestedNext.startsWith('//')) {
+        callbackUrl.searchParams.set('next', requestedNext)
+      }
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: callbackUrl.toString() },
       })
       if (authError) throw authError
       setSent(true)

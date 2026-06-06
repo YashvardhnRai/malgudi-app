@@ -32,7 +32,7 @@ export default function WorkerPage() {
   useEffect(() => {
     let mounted = true
 
-    fetch('/api/outlets')
+    fetch('/api/outlets/directory')
       .then((response) => response.json())
       .then((data: { outlets?: Outlet[] }) => {
         if (!mounted) return
@@ -56,6 +56,43 @@ export default function WorkerPage() {
       .finally(() => {
         if (mounted) setLoading(false)
       })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+
+    fetch('/api/me')
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<{
+          user?: { outlet_id?: string | null }
+        }>
+      })
+      .then(async (session) => {
+        const assignedOutletId = session?.user?.outlet_id
+        if (!mounted || !assignedOutletId) return
+
+        const response = await fetch(`/api/outlets/${assignedOutletId}`)
+        if (!response.ok) return
+        const detail = (await response.json()) as { outlet?: Outlet }
+        if (!mounted || !detail.outlet) return
+
+        setOutlets((current) => {
+          const others = current.filter((outlet) => outlet.id !== detail.outlet!.id)
+          return [detail.outlet!, ...others]
+        })
+        setSelectedOutletId(detail.outlet.id)
+        window.localStorage.setItem(OUTLET_STORAGE_KEY, detail.outlet.id)
+        window.localStorage.setItem(
+          OUTLET_DATA_STORAGE_KEY,
+          JSON.stringify(detail.outlet)
+        )
+      })
+      .catch(() => {})
 
     return () => {
       mounted = false

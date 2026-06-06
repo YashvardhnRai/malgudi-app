@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import WorkerDock from '@/app/components/WorkerDock'
 import StatusBadge from '@/app/components/StatusBadge'
+import { getIstParts, OPERATIONS_SLOTS } from '@/lib/operations'
+import { submitPhotoUpload } from '@/lib/photo-upload-client'
 import type { Outlet } from '@/lib/types'
 
 const OUTLET_STORAGE_KEY = 'malgudi-worker-outlet'
@@ -39,9 +41,10 @@ type Category =
 type UploadState = 'idle' | 'uploading' | 'done' | 'error'
 
 interface UploadResult {
-  url: string
+  url?: string
   aiStatus: 'APPROVED' | 'FLAGGED' | 'PENDING'
   aiNotes: string
+  queued?: boolean
 }
 
 const CATEGORIES: {
@@ -67,6 +70,7 @@ export default function UploadPage() {
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [selectedOutletId, setSelectedOutletId] = useState('')
   const [loadingOutlets, setLoadingOutlets] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -121,6 +125,7 @@ export default function UploadPage() {
     onDrop,
     accept: { 'image/*': [] },
     maxFiles: 5,
+    maxSize: 8 * 1024 * 1024,
   })
 
   function removeFile(index: number) {
@@ -143,20 +148,32 @@ export default function UploadPage() {
   async function handleSubmit() {
     if (files.length === 0 || !selectedOutletId) return
     setState('uploading')
-
-    const formData = new FormData()
-    files.forEach((file) => formData.append('photos', file))
-    formData.append('category', category)
-    formData.append('caption', caption)
-    formData.append('outlet_id', selectedOutletId)
+    setErrorMessage('')
+    const ist = getIstParts()
+    const matchingSlot = [...OPERATIONS_SLOTS]
+      .reverse()
+      .find((slot) => slot.hour <= ist.hour && slot.category === category)
 
     try {
-      const response = await fetch('/api/photos', { method: 'POST', body: formData })
-      const data = (await response.json()) as UploadResult
-      if (!response.ok) throw new Error('Upload failed')
-      setResult(data)
+      const upload = await submitPhotoUpload({
+        outletId: selectedOutletId,
+        category,
+        caption,
+        slotKey: matchingSlot?.key ?? null,
+        files,
+      })
+      setResult(
+        upload.queued
+          ? {
+              aiStatus: 'PENDING',
+              aiNotes: 'Saved on this phone and waiting for a connection.',
+              queued: true,
+            }
+          : (upload.data as UploadResult)
+      )
       setState('done')
-    } catch {
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Upload failed')
       setState('error')
     }
   }
@@ -204,7 +221,9 @@ export default function UploadPage() {
                 )}
               </div>
               <h2>
-                {result.aiStatus === 'FLAGGED'
+                {result.queued
+                  ? 'Upload saved offline'
+                  : result.aiStatus === 'FLAGGED'
                   ? 'Photo needs review'
                   : result.aiStatus === 'APPROVED'
                   ? 'Upload approved'
@@ -319,7 +338,7 @@ export default function UploadPage() {
               {state === 'error' && (
                 <div className="upload-error">
                   <AlertTriangle size={16} />
-                  Upload failed. Please try again.
+                  {errorMessage || 'Upload failed. Please try again.'}
                 </div>
               )}
 

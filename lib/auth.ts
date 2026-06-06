@@ -11,7 +11,7 @@ export function normalizeEmail(email: string | null | undefined): string {
 }
 
 export function getCeoEmails(): string[] {
-  const configured = process.env.NEXT_PUBLIC_CEO_EMAILS?.split(",") ?? [];
+  const configured = process.env.CEO_EMAILS?.split(",") ?? [];
   return Array.from(
     new Set(
       [...DEFAULT_CEO_EMAILS, ...configured]

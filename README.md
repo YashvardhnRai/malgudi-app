@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Malgudi Operations
 
-## Getting Started
+Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks eight daily proof slots, photo uploads with AI review, sales, complaints, manager presence, alerts, and user access.
 
-First, run the development server:
+## Roles
 
-```bash
+- `CEO`: all outlets, dashboard, complaints, launch kit, users, audit history.
+- `MANAGER`: assigned outlet shift board, photo proof, sales, and issue reporting.
+- `STAFF`: assigned outlet worker home, shift proof, and issue reporting.
+
+Users sign in through Supabase magic links. Create manager and staff access from `/admin/users`.
+
+## Daily Schedule
+
+All times are Asia/Kolkata:
+
+`08:00` opening, `10:00` Banmarie, `12:00` Banmarie, `14:00` Banmarie, `16:00` cleanliness, `18:00` Banmarie, `20:00` cleanliness, `22:00` closing.
+
+A slot becomes overdue after 30 minutes. Reminder rows are deduplicated by outlet, date, and slot.
+
+## Local Development
+
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3001`. The project intentionally uses webpack for local development.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Quality gates:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+npm run lint
+npm run test:run
+npm run build
+```
 
-## Learn More
+## Environment
 
-To learn more about Next.js, take a look at the following resources:
+Copy `.env.example` to `.env.local` and supply Supabase, AI, scheduler, and optional email delivery values. Never expose the service role key or `CRON_SECRET` through a `NEXT_PUBLIC_` variable.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Apply `supabase/schema.sql` for a fresh project.
+2. Apply `supabase/migration_notifications.sql`.
+3. Apply `supabase/migrations/20260606_production_hardening.sql`.
+4. Confirm the `photos` storage bucket exists and remains public-read.
 
-## Deploy on Vercel
+The hardening migration removes direct client mutation policies and limits authenticated reads to CEOs or the user’s assigned outlet. All writes pass through authenticated Next.js route handlers.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Reminders
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel Hobby supports only one cron execution per day. The project therefore includes:
+
+- A daily Vercel safety run in `vercel.json`.
+- A secure CEO-dashboard fallback while the dashboard is open.
+- `.github/workflows/restaurant-reminders.yml` for 15-minute checks.
+
+Set `CRON_SECRET` in Vercel for the daily Vercel invocation. The GitHub workflow needs no shared secret: it uses a short-lived GitHub Actions OIDC token restricted to this repository, workflow, event, and `main` branch.
+
+## Deployment
+
+Push `main` to deploy through the linked Vercel project. After deployment:
+
+1. Check `/api/health` returns `status: ok`.
+2. Sign in with each role and verify role routing.
+3. Upload one photo from a phone and confirm it appears on the CEO dashboard.
+4. Submit sales and an issue from a manager account.
+5. Enable phone alerts from the CEO notification menu.
+6. Run the Restaurant reminders workflow manually once.
+
+Optional email alerts use Resend through `RESEND_API_KEY` and `ALERT_FROM_EMAIL`.

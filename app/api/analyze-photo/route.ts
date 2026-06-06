@@ -1,57 +1,75 @@
-import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { isSupabaseConfigured, getSupabaseServerClient } from '@/lib/supabase'
+import { NextRequest, NextResponse } from 'next/server'
+import { enforceRateLimit, readJsonBody, requireSameOrigin } from '@/lib/api-security'
+import { authorizeApi } from '@/lib/auth-server'
+import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
+import { isUuid } from '@/lib/validation'
 
-const INSPECTION_PROMPT = `You are a restaurant quality inspector for Malgudi restaurants. Analyze this photo from an outlet. Look for:
-1. Kitchen cleanliness and hygiene
-2. Food presentation and quality
-3. Storage and organization
-4. Safety hazards
-5. Staff uniform and grooming
+const INSPECTION_PROMPT = `You are a restaurant quality inspector for Malgudi restaurants. Analyze this photo for kitchen cleanliness, food quality, storage, safety, and staff hygiene. Respond with JSON only:
+{"status":"PASS" or "FAIL","score":1-10,"issues":[{"category":"Hygiene","severity":"HIGH" or "MEDIUM" or "LOW","description":"brief issue"}],"summary":"brief summary","recommendation":"brief action"}`
 
-Respond in JSON format:
-{
-  "status": "PASS" or "FAIL",
-  "score": 1-10,
-  "issues": [
-    {
-      "category": "Hygiene",
-      "severity": "HIGH" | "MEDIUM" | "LOW",
-      "description": "short description"
-    }
-  ],
-  "summary": "one line summary",
-  "recommendation": "what to fix"
-}`
-
+const MEDIA_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_BASE64_LENGTH = 11_200_000
 const SEVERITY_ORDER: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
 
-export async function POST(request: NextRequest) {
-  const { image, outlet_id, media_type } = await request.json()
+type Analysis = {
+  status: 'PASS' | 'FAIL'
+  score: number
+  issues: { category: string; severity: string; description: string }[]
+  summary: string
+  recommendation: string
+}
 
-  if (!image) {
-    return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+export async function POST(request: NextRequest) {
+  const originError = requireSameOrigin(request)
+  if (originError) return originError
+  const rateError = enforceRateLimit(request, 'photo-analysis', 6, 10 * 60_000)
+  if (rateError) return rateError
+
+  const contentLength = Number(request.headers.get('content-length') || 0)
+  if (contentLength > 12 * 1024 * 1024) {
+    return NextResponse.json({ error: 'Photo is too large' }, { status: 413 })
   }
+
+  const parsed = await readJsonBody<{
+    image?: unknown
+    outlet_id?: unknown
+    media_type?: unknown
+  }>(request)
+  if (parsed.response || !parsed.data) return parsed.response
+
+  const image = typeof parsed.data.image === 'string' ? parsed.data.image : ''
+  const outletId = parsed.data.outlet_id
+  const mediaType =
+    typeof parsed.data.media_type === 'string' ? parsed.data.media_type : 'image/jpeg'
+
+  if (
+    !isUuid(outletId) ||
+    !MEDIA_TYPES.has(mediaType) ||
+    !image ||
+    image.length > MAX_BASE64_LENGTH ||
+    !/^[A-Za-z0-9+/=]+$/.test(image)
+  ) {
+    return NextResponse.json({ error: 'Valid image data is required' }, { status: 400 })
+  }
+
+  const { actor, response } = await authorizeApi({
+    roles: ['CEO', 'MANAGER'],
+    outletId,
+  })
+  if (response || !actor) return response
 
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || apiKey === 'your_anthropic_api_key_here') {
-    return NextResponse.json({ error: 'AI analysis not configured' }, { status: 503 })
+  if (!apiKey) {
+    return NextResponse.json({ error: 'AI analysis is not configured' }, { status: 503 })
   }
 
-  const anthropic = new Anthropic({ apiKey })
-
-  let analysis: {
-    status: 'PASS' | 'FAIL'
-    score: number
-    issues: { category: string; severity: string; description: string }[]
-    summary: string
-    recommendation: string
-  }
-
+  let analysis: Analysis
   try {
-    const response = await anthropic.messages.create({
+    const anthropic = new Anthropic({ apiKey })
+    const result = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 700,
       messages: [{
         role: 'user',
         content: [
@@ -59,7 +77,7 @@ export async function POST(request: NextRequest) {
             type: 'image',
             source: {
               type: 'base64',
-              media_type: (media_type ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
               data: image,
             },
           },
@@ -68,38 +86,42 @@ export async function POST(request: NextRequest) {
       }],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
-    analysis = JSON.parse(cleaned)
-  } catch (err) {
-    console.error('Claude analysis error:', err)
-    return NextResponse.json({ error: 'AI analysis failed' }, { status: 500 })
+    const text = result.content[0].type === 'text' ? result.content[0].text : ''
+    const raw = JSON.parse(text.replace(/```json|```/g, '').trim()) as Partial<Analysis>
+    analysis = {
+      status: raw.status === 'FAIL' ? 'FAIL' : 'PASS',
+      score: Math.max(1, Math.min(10, Number(raw.score) || 1)),
+      issues: Array.isArray(raw.issues)
+        ? raw.issues.slice(0, 10).map((issue) => ({
+            category: String(issue.category || 'Quality').slice(0, 60),
+            severity: ['HIGH', 'MEDIUM', 'LOW'].includes(issue.severity)
+              ? issue.severity
+              : 'LOW',
+            description: String(issue.description || '').slice(0, 240),
+          }))
+        : [],
+      summary: String(raw.summary || '').slice(0, 300),
+      recommendation: String(raw.recommendation || '').slice(0, 300),
+    }
+  } catch {
+    return NextResponse.json({ error: 'AI analysis is temporarily unavailable' }, { status: 503 })
   }
 
-  if (analysis.status === 'FAIL' && outlet_id && isSupabaseConfigured) {
-    try {
-      const supabase = getSupabaseServerClient()
-
-      const highestSeverity = analysis.issues.reduce(
-        (best, issue) =>
-          (SEVERITY_ORDER[issue.severity] ?? 0) > (SEVERITY_ORDER[best] ?? 0) ? issue.severity : best,
-        'LOW'
-      )
-
-      const dbSeverity = highestSeverity === 'HIGH' ? 'HIGH'
-        : highestSeverity === 'MEDIUM' ? 'MEDIUM'
-        : 'LOW'
-
-      await supabase.from('alerts').insert({
-        outlet_id,
-        alert_type: 'AI_PHOTO_REVIEW',
-        message: `${analysis.summary}. ${analysis.recommendation}`,
-        severity: dbSeverity,
-        is_read: false,
-      })
-    } catch (err) {
-      console.error('Alert insert error:', err)
-    }
+  if (analysis.status === 'FAIL' && isSupabaseConfigured) {
+    const highestSeverity = analysis.issues.reduce(
+      (best, issue) =>
+        (SEVERITY_ORDER[issue.severity] ?? 0) > (SEVERITY_ORDER[best] ?? 0)
+          ? issue.severity
+          : best,
+      'LOW'
+    )
+    await getSupabaseServerClient().from('alerts').insert({
+      outlet_id: outletId,
+      alert_type: 'AI_PHOTO_REVIEW',
+      message: `${analysis.summary}. ${analysis.recommendation}`.slice(0, 500),
+      severity: highestSeverity,
+      is_read: false,
+    })
   }
 
   return NextResponse.json(analysis)

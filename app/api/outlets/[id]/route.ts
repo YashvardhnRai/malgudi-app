@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { isSupabaseConfigured, getSupabaseServerClient } from '@/lib/supabase'
+import { authorizeApi } from '@/lib/auth-server'
+import { getIstDateRange } from '@/lib/operations'
+import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
 import { getMockOutletDetail } from '@/lib/mock-data'
 
 const SEEDED_OUTLET_ID_TO_MOCK_ID: Record<string, string> = {
@@ -18,57 +20,67 @@ const SEEDED_OUTLET_ID_TO_MOCK_ID: Record<string, string> = {
   '00000000-0000-0000-0000-00000000000d': 'outlet-difc',
 }
 
-function getFallbackDetail(id: string) {
-  return getMockOutletDetail(SEEDED_OUTLET_ID_TO_MOCK_ID[id] ?? id)
-}
-
 export async function GET(
-  _req: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const access = await authorizeApi({
+    roles: ['CEO', 'MANAGER', 'STAFF'],
+    outletId: id,
+  })
+  if (access.response) return access.response
 
   if (!isSupabaseConfigured) {
-    const detail = getFallbackDetail(id)
-    if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(detail)
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Operations database unavailable' }, { status: 503 })
+    }
+    const detail = getMockOutletDetail(SEEDED_OUTLET_ID_TO_MOCK_ID[id] ?? id)
+    return detail
+      ? NextResponse.json(detail)
+      : NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   try {
     const supabase = getSupabaseServerClient()
-    const today = new Date().toISOString().split('T')[0]
+    const { date, start, end } = getIstDateRange()
+    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes] =
+      await Promise.all([
+        supabase.from('outlets').select('*').eq('id', id).single(),
+        supabase
+          .from('checklist_submissions')
+          .select('*')
+          .eq('outlet_id', id)
+          .gte('created_at', start)
+          .lte('created_at', end),
+        supabase
+          .from('photo_uploads')
+          .select('*')
+          .eq('outlet_id', id)
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('daily_sales')
+          .select('*')
+          .eq('outlet_id', id)
+          .eq('date', date)
+          .maybeSingle(),
+        supabase
+          .from('complaints')
+          .select('*')
+          .eq('outlet_id', id)
+          .gte('reported_at', start)
+          .lte('reported_at', end),
+      ])
 
-    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes] = await Promise.all([
-      supabase.from('outlets').select('*').eq('id', id).single(),
-      supabase.from('checklist_submissions').select('*').eq('outlet_id', id).gte('created_at', `${today}T00:00:00Z`),
-      supabase.from('photo_uploads').select('*').eq('outlet_id', id).gte('created_at', `${today}T00:00:00Z`),
-      supabase.from('daily_sales').select('*').eq('outlet_id', id).eq('date', today).single(),
-      supabase.from('complaints').select('*').eq('outlet_id', id).gte('reported_at', `${today}T00:00:00Z`),
-    ])
-
-    if (outletRes.error || !outletRes.data) {
-      const detail = getFallbackDetail(id)
-      if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      return NextResponse.json(detail)
+    if (outletRes.error) {
+      return NextResponse.json({ error: 'Outlet not found' }, { status: 404 })
     }
-
-    const compliance_history: { date: string; rate: number }[] = []
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
-      const dayRes = await supabase
-        .from('checklist_submissions')
-        .select('status')
-        .eq('outlet_id', id)
-        .gte('created_at', `${dateStr}T00:00:00Z`)
-        .lt('created_at', `${dateStr}T23:59:59Z`)
-      const items = dayRes.data ?? []
-      const rate = items.length > 0
-        ? Math.round((items.filter((c: { status: string }) => c.status === 'SUBMITTED').length / items.length) * 100)
-        : 0
-      compliance_history.push({ date: dateStr, rate })
-    }
+    if (checklistsRes.error) throw checklistsRes.error
+    if (photosRes.error) throw photosRes.error
+    if (salesRes.error) throw salesRes.error
+    if (complaintsRes.error) throw complaintsRes.error
 
     return NextResponse.json({
       outlet: outletRes.data,
@@ -76,12 +88,17 @@ export async function GET(
       photos: photosRes.data ?? [],
       sales: salesRes.data ?? null,
       complaints: complaintsRes.data ?? [],
-      compliance_history,
+      compliance_history: [],
     })
-  } catch (err) {
-    console.error('outlet detail error:', err)
-    const detail = getFallbackDetail(id)
-    if (!detail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(detail)
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        event: 'outlet_detail_failed',
+        outletId: id,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      })
+    )
+    return NextResponse.json({ error: 'Outlet data unavailable' }, { status: 503 })
   }
 }

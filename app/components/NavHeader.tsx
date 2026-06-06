@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  BellRing,
   BellOff,
   Clock3,
   Images,
@@ -39,13 +40,23 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function cleanOperationalMessage(message: string) {
+  return message.replace(/\s*\[slot:[^\]]+\]\[date:[^\]]+\]\s*$/, "");
+}
+
 export default function NavHeader({ userName }: { userName: string }) {
   const router = useRouter();
   const [time, setTime] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission | "unsupported">(() =>
+      typeof window !== "undefined" && "Notification" in window
+        ? window.Notification.permission
+        : "unsupported"
+    );
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const seenNotificationIds = useRef<Set<string> | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -66,22 +77,41 @@ export default function NavHeader({ userName }: { userName: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const supabase = createClient();
-    void (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data.user?.email) setUserEmail(data.user.email);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!userEmail) return;
+    const showSystemNotification = async (notification: Notification) => {
+      if (!("Notification" in window) || window.Notification.permission !== "granted") return;
+      const registration = await navigator.serviceWorker?.ready.catch(() => null);
+      if (registration) {
+        await registration.showNotification(notification.title, {
+          body: notification.message.replace(/\s*\[slot:[^\]]+\]\[date:[^\]]+\]\s*$/, ""),
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: notification.id,
+          data: {
+            url: notification.outlet_id
+              ? `/outlet/${notification.outlet_id}`
+              : "/dashboard",
+          },
+        });
+      }
+    };
 
     const fetchNotifs = () => {
-      fetch(`/api/notifications?email=${encodeURIComponent(userEmail)}`)
+      fetch("/api/notifications")
         .then((r) => r.json())
         .then((data: Notification[]) => {
-          if (Array.isArray(data)) setNotifications(data);
+          if (!Array.isArray(data)) return;
+          if (seenNotificationIds.current) {
+            const fresh = data.filter(
+              (notification) =>
+                !notification.is_read &&
+                !seenNotificationIds.current?.has(notification.id)
+            );
+            fresh.slice(0, 3).forEach((notification) => {
+              void showSystemNotification(notification);
+            });
+          }
+          seenNotificationIds.current = new Set(data.map((item) => item.id));
+          setNotifications(data);
         })
         .catch(() => {});
     };
@@ -89,7 +119,13 @@ export default function NavHeader({ userName }: { userName: string }) {
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 30000);
     return () => clearInterval(interval);
-  }, [userEmail]);
+  }, []);
+
+  const enableBrowserAlerts = async () => {
+    if (!("Notification" in window)) return;
+    const permission = await window.Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -193,6 +229,17 @@ export default function NavHeader({ userName }: { userName: string }) {
                 </button>
               </div>
 
+              {notificationPermission === "default" && (
+                <button
+                  type="button"
+                  className="premium-enable-alerts"
+                  onClick={enableBrowserAlerts}
+                >
+                  <BellRing size={15} />
+                  Enable phone alerts
+                </button>
+              )}
+
               <div className="premium-dropdown-list">
                 {notifications.length === 0 ? (
                   <div className="premium-empty-notifications">
@@ -212,7 +259,7 @@ export default function NavHeader({ userName }: { userName: string }) {
                         <strong>{notification.title}</strong>
                         <small>{timeAgo(notification.created_at)}</small>
                       </div>
-                      <p>{notification.message}</p>
+                      <p>{cleanOperationalMessage(notification.message)}</p>
                       {notification.type === "PHOTO_MISSED" &&
                         notification.manager_phone && (
                           <a href={`tel:${notification.manager_phone}`}>

@@ -30,6 +30,8 @@ const APP_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://malgudi-app.verc
 
 const CHECKS = [
   'Open this launch kit on the manager phone.',
+  'Add the manager and staff emails in User management.',
+  'Ask each team member to open their magic-link invite.',
   'Select the restaurant outlet below.',
   'Scan Worker Home QR on every staff phone.',
   'Tap Install or Add to Home Screen.',

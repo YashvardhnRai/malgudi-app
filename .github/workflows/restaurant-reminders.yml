@@ -1,0 +1,30 @@
+name: Restaurant reminders
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: restaurant-reminders
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check overdue restaurant proof
+        run: |
+          OIDC_RESPONSE=$(curl --fail --silent --show-error \
+            --header "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=malgudi-restaurant-reminders")
+          ID_TOKEN=$(printf '%s' "$OIDC_RESPONSE" | jq -r '.value')
+          test -n "$ID_TOKEN"
+          test "$ID_TOKEN" != "null"
+          curl --fail --silent --show-error --retry 3 \
+            --header "Authorization: Bearer $ID_TOKEN" \
+            https://malgudi-app.vercel.app/api/check-uploads

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'malgudi-worker-v1'
+const CACHE_NAME = 'malgudi-worker-v3-20260606'
 const STATIC_ASSETS = [
   '/worker',
   '/launch',
@@ -29,6 +29,10 @@ self.addEventListener('activate', (event) => {
     )
   )
   self.clients.claim()
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('fetch', (event) => {
@@ -62,4 +66,20 @@ self.addEventListener('fetch', (event) => {
       })
     )
   }
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification.data?.url || '/dashboard'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          client.navigate(targetUrl)
+          return client.focus()
+        }
+      }
+      return self.clients.openWindow(targetUrl)
+    })
+  )
 })

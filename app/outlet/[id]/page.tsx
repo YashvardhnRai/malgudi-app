@@ -1,81 +1,66 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import OutletDetail from "../../components/OutletDetail";
+import { redirect } from 'next/navigation'
+import OutletDetail from '@/app/components/OutletDetail'
+import { requirePageActor } from '@/lib/auth-server'
+import { getIstDateRange } from '@/lib/operations'
+import { getSupabaseServerClient } from '@/lib/supabase'
 
 export default async function OutletPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }) {
-  const { id } = await params;
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
+  const { id } = await params
+  const actor = await requirePageActor({ roles: ['CEO'], outletId: id })
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
+  const supabase = getSupabaseServerClient()
+  const { date, start, end } = getIstDateRange()
+  const [outletRes, photosRes, complaintsRes, salesRes, checklistsRes, managerRes] =
+    await Promise.all([
+      supabase.from('outlets').select('*').eq('id', id).maybeSingle(),
+      supabase
+        .from('photo_uploads')
+        .select('*')
+        .eq('outlet_id', id)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('complaints')
+        .select('*')
+        .eq('outlet_id', id)
+        .order('reported_at', { ascending: false }),
+      supabase
+        .from('daily_sales')
+        .select('*')
+        .eq('outlet_id', id)
+        .eq('date', date)
+        .maybeSingle(),
+      supabase
+        .from('checklist_submissions')
+        .select('*')
+        .eq('outlet_id', id)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('users')
+        .select('name, phone, email')
+        .eq('outlet_id', id)
+        .eq('role', 'MANAGER')
+        .maybeSingle(),
+    ])
 
-  const today = new Date().toISOString().split("T")[0];
-
-  const { data: outlet } = await supabase
-    .from("outlets")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (!outlet) redirect("/");
-
-  const { data: photos } = await supabase
-    .from("photo_uploads")
-    .select("*")
-    .eq("outlet_id", id)
-    .gte("created_at", today + "T00:00:00")
-    .order("created_at", { ascending: false });
-
-  const { data: complaints } = await supabase
-    .from("complaints")
-    .select("*")
-    .eq("outlet_id", id)
-    .order("reported_at", { ascending: false });
-
-  const { data: sales } = await supabase
-    .from("daily_sales")
-    .select("*")
-    .eq("outlet_id", id)
-    .eq("date", today)
-    .single();
-
-  const { data: checklists } = await supabase
-    .from("checklist_submissions")
-    .select("*")
-    .eq("outlet_id", id)
-    .gte("created_at", today + "T00:00:00")
-    .order("created_at", { ascending: false });
-
-  const { data: manager } = await supabase
-    .from("users")
-    .select("name, phone, email")
-    .eq("outlet_id", id)
-    .eq("role", "MANAGER")
-    .single();
+  if (!outletRes.data) redirect('/dashboard')
 
   return (
     <OutletDetail
-      outlet={outlet}
-      photos={photos || []}
-      complaints={complaints || []}
-      sales={sales || null}
-      checklists={checklists || []}
-      manager={manager || null}
+      userName={actor.name}
+      outlet={outletRes.data}
+      photos={photosRes.data ?? []}
+      complaints={complaintsRes.data ?? []}
+      sales={salesRes.data ?? null}
+      checklists={checklistsRes.data ?? []}
+      manager={managerRes.data ?? null}
     />
-  );
+  )
 }

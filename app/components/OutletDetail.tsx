@@ -5,6 +5,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import NavHeader from "./NavHeader";
 import PhotoUpload from "./PhotoUpload";
+import {
+  decodeChecklistNotes,
+  inferLegacySlotKey,
+  OPERATIONS_SLOTS,
+} from "@/lib/operations";
 import type {
   ChecklistSubmission,
   Complaint,
@@ -15,6 +20,7 @@ import type {
 } from "@/lib/types";
 
 interface Props {
+  userName: string;
   outlet: Outlet;
   photos: PhotoUploadRow[];
   complaints: Complaint[];
@@ -24,6 +30,7 @@ interface Props {
 }
 
 export default function OutletDetail({
+  userName,
   outlet, photos, complaints,
   sales, checklists, manager,
 }: Props) {
@@ -47,6 +54,18 @@ export default function OutletDetail({
   ];
 
   const openComplaints = complaints.filter(c => c.status === "OPEN").length;
+  const completedSlotKeys = new Set(
+    checklists
+      .map(
+        (checklist) =>
+          decodeChecklistNotes(checklist.notes).slotKey ??
+          inferLegacySlotKey(checklist)
+      )
+      .filter((key): key is string => Boolean(key))
+  );
+
+  const formatHour = (hour: number) =>
+    `${hour % 12 || 12}:00 ${hour >= 12 ? "PM" : "AM"}`;
 
   return (
     <div style={{
@@ -54,7 +73,7 @@ export default function OutletDetail({
       background: "var(--warm-white)",
       fontFamily: "var(--font-body)",
     }}>
-      <NavHeader userName="Yash" />
+      <NavHeader userName={userName} />
 
       {/* Header */}
       <div
@@ -268,15 +287,10 @@ export default function OutletDetail({
               }}>
                 Today&apos;s Checklist Status
               </h3>
-              {[
-                { label: "Opening Checklist", time: "8:00 AM", type: "OPENING" },
-                { label: "Banmarie Update", time: "10:00 AM", type: "BANMARIE" },
-                { label: "Afternoon Clean", time: "3:00 PM", type: "CLEANLINESS" },
-                { label: "Closing Checklist", time: "11:00 PM", type: "CLOSING" },
-              ].map(item => {
-                const done = checklists.some(c => c.checklist_type === item.type);
+              {OPERATIONS_SLOTS.map(item => {
+                const done = completedSlotKeys.has(item.key);
                 return (
-                  <div key={item.label} style={{
+                  <div key={item.key} style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -293,7 +307,7 @@ export default function OutletDetail({
                         {item.label}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        Due: {item.time}
+                        Due: {formatHour(item.hour)}
                       </div>
                     </div>
                     <div style={{

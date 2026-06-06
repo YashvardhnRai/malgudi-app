@@ -10,20 +10,17 @@ type UserProfile = {
 };
 
 export async function GET(req: NextRequest) {
-  console.log("CALLBACK HIT");
-  console.log("URL:", req.url);
-
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const verificationType = searchParams.get("type") || "magiclink";
   const requestedNext = searchParams.get("next");
   const next =
     requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
       ? requestedNext
       : "/dashboard";
 
-  console.log("Code:", code ? "YES" : "NO");
-
-  if (!code) {
+  if (!code && !tokenHash) {
     return NextResponse.redirect(
       `${origin}/auth?error=no_code`
     );
@@ -56,10 +53,12 @@ export async function GET(req: NextRequest) {
     }
   );
 
-  const { error } = await supabase
-    .auth.exchangeCodeForSession(code);
-
-  console.log("Exchange error:", error?.message);
+  const { error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+        token_hash: tokenHash!,
+        type: verificationType,
+      });
 
   if (error) {
     return NextResponse.redirect(
@@ -70,8 +69,6 @@ export async function GET(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  console.log("User:", user?.email);
 
   if (!user?.email) {
     return NextResponse.redirect(`${origin}/auth?error=no_user`);
@@ -87,12 +84,16 @@ export async function GET(req: NextRequest) {
 
   if (profile?.role === "MANAGER" && profile.outlet_id) {
     destination = new URL(`/manager/${profile.outlet_id}`, origin);
+  } else if (profile?.role === "STAFF" && profile.outlet_id) {
+    destination = new URL(
+      `/worker?outlet=${encodeURIComponent(profile.outlet_id)}`,
+      origin
+    );
   } else if (profile?.role === "CEO" || isCeoEmail(user.email)) {
     destination = new URL("/dashboard", origin);
+  } else {
+    destination = new URL("/auth?error=no_access", origin);
   }
-
-  console.log("Profile:", profile);
-  console.log("Redirecting to:", destination.toString());
 
   response.headers.set("Location", destination.toString());
 
