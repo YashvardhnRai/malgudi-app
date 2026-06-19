@@ -16,6 +16,7 @@ export default async function ManagerPage({
     <ManagerPageClient
       actorName={actor.name}
       actorEmail={actor.email}
+      actorRole={actor.role}
       presenceEnabled={actor.role === 'MANAGER'}
     />
   )

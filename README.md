@@ -1,12 +1,12 @@
 # Malgudi Operations
 
-Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks eight daily proof slots, photo uploads with AI review, sales, complaints, manager presence, alerts, and user access.
+Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks eight daily proof slots, photo uploads with AI review, sales, attendance, inventory/wastage, complaints, manager presence, alerts, daily reports, and user access.
 
 ## Roles
 
 - `CEO`: all outlets, dashboard, complaints, launch kit, users, audit history.
-- `MANAGER`: assigned outlet shift board, photo proof, sales, and issue reporting.
-- `STAFF`: assigned outlet worker home, shift proof, and issue reporting.
+- `MANAGER`: assigned outlet shift board, attendance, photo proof, sales, inventory/wastage, and issue reporting.
+- `STAFF`: assigned outlet worker home, attendance, shift proof, inventory/wastage, and issue reporting.
 
 Users sign in through Supabase magic links. Create manager and staff access from `/admin/users`.
 
@@ -44,9 +44,12 @@ Copy `.env.example` to `.env.local` and supply Supabase, AI, scheduler, and opti
 1. Apply `supabase/schema.sql` for a fresh project.
 2. Apply `supabase/migration_notifications.sql`.
 3. Apply `supabase/migrations/20260606_production_hardening.sql`.
-4. Confirm the `photos` storage bucket exists and remains public-read.
+4. Apply `supabase/migrations/20260619_restaurant_features.sql`.
+5. Confirm the `photos` storage bucket exists and remains public-read.
 
 The hardening migration removes direct client mutation policies and limits authenticated reads to CEOs or the user’s assigned outlet. All writes pass through authenticated Next.js route handlers.
+
+The restaurant features migration adds shift attendance and inventory/wastage logs. The app shows a pending-migration notice on those features until the SQL has been applied.
 
 ## Reminders
 
@@ -65,8 +68,10 @@ Push `main` to deploy through the linked Vercel project. After deployment:
 1. Check `/api/health` returns `status: ok`.
 2. Sign in with each role and verify role routing.
 3. Upload one photo from a phone and confirm it appears on the CEO dashboard.
-4. Submit sales and an issue from a manager account.
-5. Enable phone alerts from the CEO notification menu.
-6. Run the Restaurant reminders workflow manually once.
+4. Submit attendance, sales, inventory/wastage, and an issue from a manager account.
+5. Open `/reports/daily`, export CSV, and print/save the PDF report.
+6. Enable phone alerts from the CEO notification menu.
+7. Run the Restaurant reminders workflow manually once.
 
 Optional email alerts use Resend through `RESEND_API_KEY` and `ALERT_FROM_EMAIL`.
+Optional SMS and WhatsApp alerts use Twilio through `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_SMS`, and `TWILIO_FROM_WHATSAPP`.

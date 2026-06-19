@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCeoEmails } from '@/lib/auth'
 import { getAuthActor } from '@/lib/auth-server'
 import { verifyReminderWorkflowToken } from '@/lib/github-oidc'
-import { deliverOperationalEmails } from '@/lib/notification-delivery'
+import {
+  deliverOperationalEmails,
+  deliverOperationalPhoneAlerts,
+} from '@/lib/notification-delivery'
 import {
   decodeChecklistNotes,
   getIstDateRange,
@@ -16,6 +19,21 @@ type OutletRow = {
   id: string
   name: string
   manager_phone: string | null
+}
+
+type CeoContact = {
+  email: string
+  phone: string | null
+}
+
+function withoutDeliveryPhone<T extends { recipient_phone?: string | null }>(
+  notifications: T[]
+) {
+  return notifications.map((notification) => {
+    const copy = { ...notification }
+    delete copy.recipient_phone
+    return copy
+  })
 }
 
 async function hasSchedulerAccess(request: NextRequest) {
@@ -62,16 +80,28 @@ export async function GET(request: NextRequest) {
   }
 
   const { start, end } = getIstDateRange(now)
-  const results: Array<{ outlet: string; slot: string; status: 'done' | 'reminded' | 'already-reminded' }> = []
+  const results: Array<{
+    outlet: string
+    slot: string
+    status: 'done' | 'reminded' | 'already-reminded' | 'escalated'
+  }> = []
   let reminders = 0
+  const ceoEmails = getCeoEmails()
+  const { data: ceoContacts } = await supabase
+    .from('users')
+    .select('email, phone')
+    .in('email', ceoEmails)
+    .returns<CeoContact[]>()
 
   for (const outlet of (outlets ?? []) as OutletRow[]) {
     const { data: manager } = await supabase
       .from('users')
-      .select('email')
+      .select('email, phone')
       .eq('outlet_id', outlet.id)
       .eq('role', 'MANAGER')
-      .maybeSingle<{ email: string }>()
+      .maybeSingle<{ email: string; phone: string | null }>()
+
+    let missingOverdueCount = 0
 
     for (const slot of dueSlots) {
       const { data: submissions } = await supabase
@@ -104,7 +134,9 @@ export async function GET(request: NextRequest) {
         continue
       }
 
+      missingOverdueCount += 1
       const marker = `[slot:${slot.key}][date:${ist.date}]`
+      const escalationMarker = `${marker}[escalation]`
       const { count: priorCount } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
@@ -113,14 +145,15 @@ export async function GET(request: NextRequest) {
         .gte('created_at', start)
         .ilike('message', `%${marker}%`)
 
-      if ((priorCount ?? 0) > 0) {
-        results.push({ outlet: outlet.name, slot: slot.key, status: 'already-reminded' })
-        continue
-      }
+      let resultStatus: 'reminded' | 'already-reminded' | 'escalated' =
+        (priorCount ?? 0) > 0 ? 'already-reminded' : 'reminded'
 
       const message = `${slot.label} proof is overdue at ${outlet.name}. ${marker}`
-      const notifications = getCeoEmails().map((email) => ({
+      const notifications = ceoEmails.map((email) => ({
         recipient_email: email,
+        recipient_phone:
+          ceoContacts?.find((contact) => contact.email.toLowerCase() === email)?.phone ??
+          null,
         recipient_role: 'CEO',
         type: 'PHOTO_MISSED',
         title: 'Scheduled proof missed',
@@ -133,6 +166,7 @@ export async function GET(request: NextRequest) {
       if (manager?.email) {
         notifications.push({
           recipient_email: manager.email,
+          recipient_phone: manager.phone ?? outlet.manager_phone,
           recipient_role: 'MANAGER',
           type: 'UPLOAD_REMINDER',
           title: 'Photo proof overdue',
@@ -143,29 +177,81 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notifications)
-      if (notificationError) {
-        console.error(JSON.stringify({
-          event: 'reminder_insert_failed',
-          outletId: outlet.id,
-          slot: slot.key,
-          message: notificationError.message,
-        }))
-        continue
+      if ((priorCount ?? 0) === 0) {
+        const { error: notificationError } = await supabase
+          .from('notifications')
+          .insert(withoutDeliveryPhone(notifications))
+        if (notificationError) {
+          console.error(JSON.stringify({
+            event: 'reminder_insert_failed',
+            outletId: outlet.id,
+            slot: slot.key,
+            message: notificationError.message,
+          }))
+          continue
+        }
+
+        await supabase.from('alerts').insert({
+          outlet_id: outlet.id,
+          alert_type: 'PHOTO_MISSED',
+          message,
+          severity: 'MEDIUM',
+          is_read: false,
+        })
+        await Promise.all([
+          deliverOperationalEmails(notifications),
+          deliverOperationalPhoneAlerts(notifications),
+        ])
+        reminders += notifications.length
       }
 
-      await supabase.from('alerts').insert({
-        outlet_id: outlet.id,
-        alert_type: 'PHOTO_MISSED',
-        message,
-        severity: 'MEDIUM',
-        is_read: false,
-      })
-      await deliverOperationalEmails(notifications)
-      reminders += notifications.length
-      results.push({ outlet: outlet.name, slot: slot.key, status: 'reminded' })
+      const minutesLate = nowMinutes - slot.hour * 60
+      const shouldEscalate = minutesLate >= 90 || missingOverdueCount >= 2
+      if (shouldEscalate) {
+        const { count: priorEscalationCount } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'PHOTO_ESCALATION')
+          .eq('outlet_id', outlet.id)
+          .gte('created_at', start)
+          .ilike('message', `%${escalationMarker}%`)
+
+        if ((priorEscalationCount ?? 0) === 0) {
+          const escalationMessage = `${slot.label} proof is still missing at ${outlet.name}. This is now escalated for owner follow-up. ${escalationMarker}`
+          const escalationNotifications = ceoEmails.map((email) => ({
+            recipient_email: email,
+            recipient_phone:
+              ceoContacts?.find((contact) => contact.email.toLowerCase() === email)?.phone ??
+              null,
+            recipient_role: 'CEO',
+            type: 'PHOTO_ESCALATION',
+            title: 'Proof escalation',
+            message: escalationMessage,
+            outlet_id: outlet.id,
+            manager_phone: outlet.manager_phone,
+            is_read: false,
+          }))
+
+          await Promise.all([
+            supabase.from('notifications').insert(
+              withoutDeliveryPhone(escalationNotifications)
+            ),
+            supabase.from('alerts').insert({
+              outlet_id: outlet.id,
+              alert_type: 'PHOTO_ESCALATION',
+              message: escalationMessage,
+              severity: 'CRITICAL',
+              is_read: false,
+            }),
+            deliverOperationalEmails(escalationNotifications),
+            deliverOperationalPhoneAlerts(escalationNotifications),
+          ])
+          reminders += escalationNotifications.length
+          resultStatus = 'escalated'
+        }
+      }
+
+      results.push({ outlet: outlet.name, slot: slot.key, status: resultStatus })
     }
   }
 

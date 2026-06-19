@@ -29,6 +29,20 @@ export function isEmail(value: unknown): value is string {
   )
 }
 
+export function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+export function toNonNegativeNumber(value: unknown) {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) && number >= 0 ? number : null
+}
+
+export function toNonNegativeInteger(value: unknown) {
+  const number = toNonNegativeNumber(value)
+  return number === null ? null : Math.floor(number)
+}
+
 export function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== 'string') return ''
   return value.trim().slice(0, maxLength)

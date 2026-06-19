@@ -8,7 +8,7 @@ type UserProfile = {
   outlet_id: string | null
 }
 
-const CEO_PATHS = ['/dashboard', '/admin', '/outlet', '/complaints', '/launch']
+const CEO_PATHS = ['/dashboard', '/admin', '/outlet', '/complaints', '/launch', '/reports']
 const OPERATIONS_PATHS = ['/manager', '/upload', '/report']
 
 function copyCookies(source: NextResponse, target: NextResponse) {
@@ -137,6 +137,7 @@ export const config = {
     '/outlet/:path*',
     '/complaints/:path*',
     '/launch/:path*',
+    '/reports/:path*',
     '/manager/:path*',
     '/upload/:path*',
     '/report/:path*',

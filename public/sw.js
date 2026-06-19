@@ -1,7 +1,8 @@
-const CACHE_NAME = 'malgudi-worker-v3-20260606'
+const CACHE_NAME = 'malgudi-worker-v4-20260619'
 const STATIC_ASSETS = [
   '/worker',
   '/launch',
+  '/reports/daily',
   '/auth',
   '/manifest.json',
   '/icon-192.png',

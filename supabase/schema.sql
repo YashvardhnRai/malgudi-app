@@ -85,6 +85,39 @@ CREATE TABLE daily_sales (
   UNIQUE(outlet_id, date)
 );
 
+CREATE TABLE shift_attendance (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  user_email TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('CEO', 'MANAGER', 'STAFF')),
+  shift_date DATE NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('CHECKED_IN', 'CHECKED_OUT')),
+  check_in_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  check_out_at TIMESTAMPTZ,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(outlet_id, user_email, shift_date)
+);
+
+CREATE TABLE inventory_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
+  recorded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  item_name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'GENERAL',
+  unit TEXT NOT NULL DEFAULT 'pcs',
+  opening_qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  used_qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  wasted_qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  closing_qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  note TEXT,
+  log_date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   outlet_id UUID REFERENCES outlets(id),
@@ -102,6 +135,10 @@ CREATE INDEX idx_checklist_submissions_outlet_date ON checklist_submissions(outl
 CREATE INDEX idx_photo_uploads_outlet_date ON photo_uploads(outlet_id, created_at);
 CREATE INDEX idx_complaints_outlet ON complaints(outlet_id, status);
 CREATE INDEX idx_daily_sales_outlet_date ON daily_sales(outlet_id, date);
+CREATE INDEX idx_shift_attendance_outlet_date ON shift_attendance(outlet_id, shift_date);
+CREATE INDEX idx_shift_attendance_user_date ON shift_attendance(user_email, shift_date DESC);
+CREATE INDEX idx_inventory_logs_outlet_date ON inventory_logs(outlet_id, log_date DESC);
+CREATE INDEX idx_inventory_logs_wastage ON inventory_logs(outlet_id, log_date DESC, wasted_qty) WHERE wasted_qty > 0;
 CREATE INDEX idx_alerts_unread ON alerts(is_read, created_at);
 CREATE INDEX idx_users_email ON users(email);
 
@@ -133,6 +170,8 @@ ALTER TABLE checklist_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE photo_uploads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE complaints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shift_attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
 
 -- CEO can see everything; managers see their outlet only

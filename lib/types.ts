@@ -74,6 +74,38 @@ export interface DailySales {
   created_at: string
 }
 
+export interface ShiftAttendance {
+  id: string
+  outlet_id: string
+  user_id: string | null
+  user_email: string
+  user_name: string
+  role: 'CEO' | 'MANAGER' | 'STAFF'
+  shift_date: string
+  status: 'CHECKED_IN' | 'CHECKED_OUT'
+  check_in_at: string
+  check_out_at: string | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InventoryLog {
+  id: string
+  outlet_id: string
+  recorded_by: string | null
+  item_name: string
+  category: string
+  unit: string
+  opening_qty: number
+  used_qty: number
+  wasted_qty: number
+  closing_qty: number
+  note: string | null
+  log_date: string
+  created_at: string
+}
+
 export interface Alert {
   id: string
   outlet_id: string | null
@@ -111,6 +143,8 @@ export interface OutletDetail {
   photos: PhotoUpload[]
   sales: DailySales | null
   complaints: Complaint[]
+  attendance?: ShiftAttendance[]
+  inventory?: InventoryLog[]
   compliance_history: { date: string; rate: number }[]
 }
 

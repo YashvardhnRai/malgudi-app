@@ -20,6 +20,10 @@ const SEEDED_OUTLET_ID_TO_MOCK_ID: Record<string, string> = {
   '00000000-0000-0000-0000-00000000000d': 'outlet-difc',
 }
 
+function isMissingTableError(error: { code?: string }) {
+  return error.code === '42P01' || error.code === 'PGRST205'
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -44,7 +48,7 @@ export async function GET(
   try {
     const supabase = getSupabaseServerClient()
     const { date, start, end } = getIstDateRange()
-    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes] =
+    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes, attendanceRes, inventoryRes] =
       await Promise.all([
         supabase.from('outlets').select('*').eq('id', id).single(),
         supabase
@@ -72,6 +76,18 @@ export async function GET(
           .eq('outlet_id', id)
           .gte('reported_at', start)
           .lte('reported_at', end),
+        supabase
+          .from('shift_attendance')
+          .select('*')
+          .eq('outlet_id', id)
+          .eq('shift_date', date)
+          .order('check_in_at', { ascending: false }),
+        supabase
+          .from('inventory_logs')
+          .select('*')
+          .eq('outlet_id', id)
+          .eq('log_date', date)
+          .order('created_at', { ascending: false }),
       ])
 
     if (outletRes.error) {
@@ -81,6 +97,8 @@ export async function GET(
     if (photosRes.error) throw photosRes.error
     if (salesRes.error) throw salesRes.error
     if (complaintsRes.error) throw complaintsRes.error
+    if (attendanceRes.error && !isMissingTableError(attendanceRes.error)) throw attendanceRes.error
+    if (inventoryRes.error && !isMissingTableError(inventoryRes.error)) throw inventoryRes.error
 
     return NextResponse.json({
       outlet: outletRes.data,
@@ -88,6 +106,8 @@ export async function GET(
       photos: photosRes.data ?? [],
       sales: salesRes.data ?? null,
       complaints: complaintsRes.data ?? [],
+      attendance: attendanceRes.error ? [] : attendanceRes.data ?? [],
+      inventory: inventoryRes.error ? [] : inventoryRes.data ?? [],
       compliance_history: [],
     })
   } catch (error) {

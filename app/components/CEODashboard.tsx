@@ -1,13 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
   ArrowUpRight,
   BellRing,
   Camera,
+  CalendarDays,
   ClipboardCheck,
+  Download,
   IndianRupee,
   LayoutDashboard,
   MapPin,
@@ -443,6 +446,16 @@ export default function CEODashboard({ userName }: { userName: string }) {
               {date} · Live view of sales, compliance, photo proof, and complaint
               pressure across Malgudi operations.
             </p>
+            <div className="ops-hero-actions">
+              <Link href="/reports/daily">
+                <CalendarDays size={16} />
+                Daily report
+              </Link>
+              <a href="/api/reports/daily?format=csv">
+                <Download size={16} />
+                Excel export
+              </a>
+            </div>
           </div>
 
           <div className="ops-hero-panel">

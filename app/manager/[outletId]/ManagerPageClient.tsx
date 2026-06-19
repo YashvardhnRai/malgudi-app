@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Circle,
   ClipboardCheck,
+  Clock3,
   CookingPot,
   Home,
   ImageUp,
@@ -16,10 +17,14 @@ import {
   Leaf,
   ListChecks,
   Loader2,
+  LogIn,
+  LogOut,
   Moon,
+  PackageCheck,
   Send,
   Sparkles,
   SprayCan,
+  Trash2,
   Sunrise,
   Upload,
   type LucideIcon,
@@ -70,12 +75,44 @@ type SalesDraft = {
   dine_in_orders: string;
 };
 
+type ActorRole = "CEO" | "MANAGER" | "STAFF";
+
+type AttendanceRow = {
+  id: string;
+  user_email: string;
+  status: "CHECKED_IN" | "CHECKED_OUT";
+  check_in_at: string;
+  check_out_at: string | null;
+};
+
+type InventoryDraft = {
+  item_name: string;
+  category: string;
+  unit: string;
+  opening_qty: string;
+  used_qty: string;
+  wasted_qty: string;
+  closing_qty: string;
+  note: string;
+};
+
 const EMPTY_SALES: SalesDraft = {
   total_sales: "",
   covers_count: "",
   swiggy_orders: "",
   zomato_orders: "",
   dine_in_orders: "",
+};
+
+const EMPTY_INVENTORY: InventoryDraft = {
+  item_name: "",
+  category: "FOOD",
+  unit: "kg",
+  opening_qty: "",
+  used_qty: "",
+  wasted_qty: "",
+  closing_qty: "",
+  note: "",
 };
 
 const SLOT_ICONS: Record<string, LucideIcon> = {
@@ -109,6 +146,16 @@ const OUTLET_DATA_STORAGE_KEY = "malgudi-worker-outlet-data";
 function formatHour(h: number) {
   const hour = h % 12 || 12;
   return `${hour}:00 ${h >= 12 ? "PM" : "AM"}`;
+}
+
+function formatTime(value: string | null | undefined) {
+  if (!value) return "Not recorded";
+  return new Date(value).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 function getGreeting() {
@@ -155,10 +202,12 @@ function UploadNowButton({
 export default function ManagerPageClient({
   actorName,
   actorEmail,
+  actorRole,
   presenceEnabled,
 }: {
   actorName: string
   actorEmail: string
+  actorRole: ActorRole
   presenceEnabled: boolean
 }) {
   const router = useRouter();
@@ -183,6 +232,16 @@ export default function ManagerPageClient({
   const [salesState, setSalesState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [attendance, setAttendance] = useState<AttendanceRow | null>(null);
+  const [attendanceState, setAttendanceState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [attendanceError, setAttendanceError] = useState("");
+  const [inventory, setInventory] = useState<InventoryDraft>(EMPTY_INVENTORY);
+  const [inventoryState, setInventoryState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [inventoryError, setInventoryError] = useState("");
 
   const completedSlotKeys = useMemo(
     () =>
@@ -276,6 +335,26 @@ export default function ManagerPageClient({
     updateUploadStatus(nextTasks);
   };
 
+  async function loadAttendance() {
+    try {
+      const response = await fetch(`/api/attendance?outlet_id=${outletId}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as AttendanceRow[] & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Attendance unavailable");
+      const ownAttendance =
+        Array.isArray(payload)
+          ? payload.find((row) => row.user_email === actorEmail) ?? payload[0] ?? null
+          : null;
+      setAttendance(ownAttendance);
+      setAttendanceError("");
+    } catch (error) {
+      setAttendanceError(
+        error instanceof Error ? error.message : "Attendance unavailable"
+      );
+    }
+  }
+
   useEffect(() => {
     queueMicrotask(() => {
       const cached = window.localStorage.getItem(OUTLET_DATA_STORAGE_KEY);
@@ -286,9 +365,10 @@ export default function ManagerPageClient({
         } catch {}
       }
       void loadData();
+      void loadAttendance();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outletId]);
+  }, [outletId, actorEmail]);
 
   useEffect(() => {
     window.localStorage.setItem(OUTLET_STORAGE_KEY, outletId);
@@ -363,6 +443,63 @@ export default function ManagerPageClient({
     }
   }
 
+  async function updateAttendance(action: "check_in" | "check_out") {
+    setAttendanceState("saving");
+    setAttendanceError("");
+    try {
+      const response = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outlet_id: outletId,
+          action,
+        }),
+      });
+      const payload = (await response.json()) as AttendanceRow & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Unable to update attendance");
+      setAttendance(payload);
+      setAttendanceState("saved");
+      window.setTimeout(() => setAttendanceState("idle"), 2500);
+    } catch (error) {
+      setAttendanceState("error");
+      setAttendanceError(
+        error instanceof Error ? error.message : "Unable to update attendance"
+      );
+    }
+  }
+
+  async function saveInventory() {
+    setInventoryState("saving");
+    setInventoryError("");
+    try {
+      const response = await fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outlet_id: outletId,
+          item_name: inventory.item_name,
+          category: inventory.category,
+          unit: inventory.unit,
+          opening_qty: Number(inventory.opening_qty || 0),
+          used_qty: Number(inventory.used_qty || 0),
+          wasted_qty: Number(inventory.wasted_qty || 0),
+          closing_qty: Number(inventory.closing_qty || 0),
+          note: inventory.note,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Unable to save inventory");
+      setInventory(EMPTY_INVENTORY);
+      setInventoryState("saved");
+      window.setTimeout(() => setInventoryState("idle"), 3000);
+    } catch (error) {
+      setInventoryState("error");
+      setInventoryError(
+        error instanceof Error ? error.message : "Unable to save inventory"
+      );
+    }
+  }
+
   const completedCount = TASKS.filter((task) =>
     completedSlotKeys.has(task.key)
   ).length;
@@ -373,6 +510,7 @@ export default function ManagerPageClient({
     uploadStatus?.type === "DUE" ? "warning" :
     uploadStatus?.type === "DONE" ? "success" :
     "neutral";
+  const canEditSales = actorRole !== "STAFF";
 
   return (
     <main className="manager-page">
@@ -410,6 +548,63 @@ export default function ManagerPageClient({
             <span style={{ width: `${completion}%` }} />
           </div>
           <p>{completedCount} of {TASKS.length} scheduled checks completed.</p>
+        </section>
+
+        <section className="manager-attendance-card">
+          <div className="manager-attendance-copy">
+            <span>
+              <Clock3 size={14} />
+              Attendance
+            </span>
+            <strong>
+              {attendance?.status === "CHECKED_OUT"
+                ? "Shift closed"
+                : attendance
+                ? "Checked in"
+                : "Not checked in"}
+            </strong>
+            <small>
+              In {formatTime(attendance?.check_in_at)}
+              {attendance?.check_out_at ? ` / Out ${formatTime(attendance.check_out_at)}` : ""}
+            </small>
+          </div>
+          <div className="manager-attendance-actions">
+            <button
+              type="button"
+              onClick={() => void updateAttendance("check_in")}
+              disabled={
+                attendanceState === "saving" ||
+                Boolean(attendance && !attendance.check_out_at)
+              }
+            >
+              <LogIn size={15} />
+              Check in
+            </button>
+            <button
+              type="button"
+              onClick={() => void updateAttendance("check_out")}
+              disabled={
+                attendanceState === "saving" ||
+                !attendance ||
+                Boolean(attendance.check_out_at)
+              }
+            >
+              <LogOut size={15} />
+              Check out
+            </button>
+          </div>
+          {attendanceError && (
+            <div className="manager-upload-error">
+              <AlertTriangle size={16} />
+              {attendanceError}
+            </div>
+          )}
+          {attendanceState === "saved" && (
+            <div className="manager-success">
+              <CheckCircle2 size={17} />
+              Attendance updated.
+            </div>
+          )}
         </section>
 
         {uploadStatus && uploadStatus.type !== "NONE" && (
@@ -477,6 +672,8 @@ export default function ManagerPageClient({
           })}
         </section>
 
+        {canEditSales && (
+          <>
         <section className="manager-section-head">
           <div>
             <span>Close the loop</span>
@@ -556,6 +753,141 @@ export default function ManagerPageClient({
             <div className="manager-upload-error">
               <AlertTriangle size={16} />
               Sales could not be saved. Check the values and try again.
+            </div>
+          )}
+        </section>
+          </>
+        )}
+
+        <section className="manager-section-head">
+          <div>
+            <span>Stock</span>
+            <h2>Inventory & wastage</h2>
+          </div>
+          <PackageCheck size={20} />
+        </section>
+
+        <section className="manager-inventory-card">
+          <div className="manager-inventory-top">
+            <label>
+              <span>Item</span>
+              <input
+                value={inventory.item_name}
+                onChange={(event) =>
+                  setInventory((current) => ({
+                    ...current,
+                    item_name: event.target.value,
+                  }))
+                }
+                placeholder="Idli batter"
+              />
+            </label>
+            <label>
+              <span>Category</span>
+              <select
+                value={inventory.category}
+                onChange={(event) =>
+                  setInventory((current) => ({
+                    ...current,
+                    category: event.target.value,
+                  }))
+                }
+              >
+                <option value="FOOD">Food</option>
+                <option value="RAW">Raw</option>
+                <option value="PACKAGING">Packaging</option>
+                <option value="CLEANING">Cleaning</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="manager-inventory-grid">
+            {([
+              ["opening_qty", "Opening"],
+              ["used_qty", "Used"],
+              ["wasted_qty", "Wasted"],
+              ["closing_qty", "Closing"],
+            ] as const).map(([key, label]) => (
+              <label key={key}>
+                <span>{label}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={inventory[key]}
+                  onChange={(event) =>
+                    setInventory((current) => ({
+                      ...current,
+                      [key]: event.target.value,
+                    }))
+                  }
+                  placeholder="0"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="manager-inventory-top compact">
+            <label>
+              <span>Unit</span>
+              <input
+                value={inventory.unit}
+                onChange={(event) =>
+                  setInventory((current) => ({
+                    ...current,
+                    unit: event.target.value,
+                  }))
+                }
+                placeholder="kg"
+              />
+            </label>
+            <label>
+              <span>Note</span>
+              <input
+                value={inventory.note}
+                onChange={(event) =>
+                  setInventory((current) => ({
+                    ...current,
+                    note: event.target.value,
+                  }))
+                }
+                placeholder="Reason or batch"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            className="manager-inventory-submit"
+            onClick={saveInventory}
+            disabled={inventoryState === "saving" || !inventory.item_name}
+          >
+            {inventoryState === "saving" ? (
+              <Loader2 size={17} className="spin" />
+            ) : Number(inventory.wasted_qty || 0) > 0 ? (
+              <Trash2 size={17} />
+            ) : (
+              <PackageCheck size={17} />
+            )}
+            {inventoryState === "saving"
+              ? "Saving"
+              : inventoryState === "saved"
+              ? "Stock saved"
+              : "Save stock log"}
+          </button>
+
+          {inventoryState === "error" && (
+            <div className="manager-upload-error">
+              <AlertTriangle size={16} />
+              {inventoryError || "Inventory could not be saved."}
+            </div>
+          )}
+          {inventoryState === "saved" && (
+            <div className="manager-success">
+              <CheckCircle2 size={17} />
+              Inventory recorded for today&apos;s report.
             </div>
           )}
         </section>
