@@ -13,8 +13,8 @@ export async function GET() {
         name: outlet.name,
         city: outlet.city,
         country: outlet.country,
-        manager_name: null,
-        manager_phone: null,
+        manager_name: outlet.manager_name,
+        manager_phone: outlet.manager_phone,
         is_active: outlet.is_active,
         created_at: outlet.created_at,
       })),
@@ -23,7 +23,7 @@ export async function GET() {
 
   const { data, error } = await getSupabaseServerClient()
     .from('outlets')
-    .select('id, name, city, country, is_active, created_at')
+    .select('id, name, city, country, manager_name, manager_phone, is_active, created_at')
     .eq('is_active', true)
     .order('name')
 
@@ -31,11 +31,5 @@ export async function GET() {
     return NextResponse.json({ error: 'Outlet directory unavailable', outlets: [] }, { status: 503 })
   }
 
-  return NextResponse.json({
-    outlets: (data ?? []).map((outlet) => ({
-      ...outlet,
-      manager_name: null,
-      manager_phone: null,
-    })),
-  })
+  return NextResponse.json({ outlets: data ?? [] })
 }
