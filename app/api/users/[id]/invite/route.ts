@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { enforceRateLimit, requireSameOrigin } from '@/lib/api-security'
 import { writeAuditEvent } from '@/lib/audit'
 import { authorizeApi } from '@/lib/auth-server'
+import { getPublicSiteUrl } from '@/lib/site-url'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
 import { isUuid } from '@/lib/validation'
 
@@ -37,9 +38,8 @@ export async function POST(
     }>()
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
   const { error } = await supabase.auth.admin.inviteUserByEmail(user.email, {
-    redirectTo: `${siteUrl.replace(/\/$/, '')}/auth/callback`,
+    redirectTo: `${getPublicSiteUrl(request)}/auth/callback`,
     data: { name: user.name, role: user.role, outlet_id: user.outlet_id },
   })
   if (error) {

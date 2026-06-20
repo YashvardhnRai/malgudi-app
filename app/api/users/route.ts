@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { enforceRateLimit, readJsonBody, requireSameOrigin } from '@/lib/api-security'
 import { writeAuditEvent } from '@/lib/audit'
 import { authorizeApi } from '@/lib/auth-server'
+import { getPublicSiteUrl } from '@/lib/site-url'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
 import { cleanText, isEmail, isUuid } from '@/lib/validation'
 
@@ -14,8 +15,7 @@ type CreateUserBody = {
 }
 
 function getRedirectTo(request: NextRequest) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-  return `${siteUrl.replace(/\/$/, '')}/auth/callback`
+  return `${getPublicSiteUrl(request)}/auth/callback`
 }
 
 export async function GET() {

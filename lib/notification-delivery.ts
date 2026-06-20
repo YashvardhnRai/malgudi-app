@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { getPublicSiteUrl } from '@/lib/site-url'
+
 type OperationalNotification = {
   recipient_email: string
   recipient_phone?: string | null
@@ -37,9 +39,7 @@ export async function deliverOperationalEmails(
         from,
         to: [notification.recipient_email],
         subject: `[Malgudi] ${notification.title}`,
-        text: `${notification.message}\n\nOpen Malgudi Operations: ${
-          process.env.NEXT_PUBLIC_SITE_URL || 'https://malgudi-app.vercel.app'
-        }`,
+        text: `${notification.message}\n\nOpen Malgudi Operations: ${getPublicSiteUrl()}`,
       }),
     })
 
@@ -120,7 +120,7 @@ async function deliverTwilioMessage({
 export async function deliverOperationalPhoneAlerts(
   notifications: OperationalNotification[]
 ) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://malgudi-app.vercel.app'
+  const siteUrl = getPublicSiteUrl()
   let sms = 0
   let whatsapp = 0
   let skipped = 0
