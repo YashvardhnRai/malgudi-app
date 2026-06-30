@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authorizeApi } from '@/lib/auth-server'
 import { getIstDateRange } from '@/lib/operations'
+import { signPhotoRows } from '@/lib/photo-urls'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
 import { getMockOutletDetail } from '@/lib/mock-data'
 
@@ -48,7 +49,7 @@ export async function GET(
   try {
     const supabase = getSupabaseServerClient()
     const { date, start, end } = getIstDateRange()
-    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes, attendanceRes, inventoryRes] =
+    const [outletRes, checklistsRes, photosRes, salesRes, complaintsRes, attendanceRes, inventoryRes, counterRoundsRes] =
       await Promise.all([
         supabase.from('outlets').select('*').eq('id', id).single(),
         supabase
@@ -88,6 +89,12 @@ export async function GET(
           .eq('outlet_id', id)
           .eq('log_date', date)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('counter_temperature_rounds')
+          .select('*')
+          .eq('outlet_id', id)
+          .eq('round_date', date)
+          .order('scheduled_at', { ascending: true }),
       ])
 
     if (outletRes.error) {
@@ -99,15 +106,40 @@ export async function GET(
     if (complaintsRes.error) throw complaintsRes.error
     if (attendanceRes.error && !isMissingTableError(attendanceRes.error)) throw attendanceRes.error
     if (inventoryRes.error && !isMissingTableError(inventoryRes.error)) throw inventoryRes.error
+    if (counterRoundsRes.error && !isMissingTableError(counterRoundsRes.error)) {
+      throw counterRoundsRes.error
+    }
+
+    const counterRounds = counterRoundsRes.error ? [] : counterRoundsRes.data ?? []
+    const counterRoundIds = counterRounds.map((round) => round.id)
+    const counterReadingsRes = counterRoundIds.length
+      ? await supabase
+          .from('counter_temperature_readings')
+          .select('*')
+          .in('round_id', counterRoundIds)
+          .order('created_at', { ascending: true })
+      : { data: [], error: null }
+    if (counterReadingsRes.error && !isMissingTableError(counterReadingsRes.error)) {
+      throw counterReadingsRes.error
+    }
+
+    const signedPhotos = await signPhotoRows(photosRes.data ?? [])
+    const signedCounterReadings = await signPhotoRows(counterReadingsRes.data ?? [])
 
     return NextResponse.json({
       outlet: outletRes.data,
       checklists: checklistsRes.data ?? [],
-      photos: photosRes.data ?? [],
+      photos: signedPhotos,
       sales: salesRes.data ?? null,
       complaints: complaintsRes.data ?? [],
       attendance: attendanceRes.error ? [] : attendanceRes.data ?? [],
       inventory: inventoryRes.error ? [] : inventoryRes.data ?? [],
+      counter_rounds: counterRounds.map((round) => ({
+        ...round,
+        readings: signedCounterReadings.filter(
+          (reading) => reading.round_id === round.id
+        ),
+      })),
       compliance_history: [],
     })
   } catch (error) {

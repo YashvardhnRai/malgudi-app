@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeApi } from '@/lib/auth-server'
 import { enforceRateLimit, readJsonBody, requireSameOrigin } from '@/lib/api-security'
 import {
+  COUNTER_ROUND_SLOTS,
+  counterRoundMinutes,
+} from '@/lib/counter-rounds'
+import {
   decodeChecklistNotes,
   getIstDateRange,
   getIstParts,
@@ -9,6 +13,7 @@ import {
   OPERATIONS_SLOTS,
 } from '@/lib/operations'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
+import { signPhotoRows } from '@/lib/photo-urls'
 import { getMockDashboard } from '@/lib/mock-data'
 import { cleanText } from '@/lib/validation'
 
@@ -18,6 +23,10 @@ type CreateOutletBody = {
   country?: string
   manager_name?: string
   manager_phone?: string
+}
+
+function isMissingTableError(error: { code?: string }) {
+  return error.code === '42P01' || error.code === 'PGRST205'
 }
 
 export async function GET() {
@@ -51,6 +60,12 @@ export async function GET() {
     const overdueSlots = OPERATIONS_SLOTS.filter(
       (slot) => nowMinutes >= slot.hour * 60 + 30
     )
+    const expectedCounterSlots = COUNTER_ROUND_SLOTS.filter(
+      (slot) => nowMinutes >= counterRoundMinutes(slot)
+    )
+    const overdueCounterSlots = COUNTER_ROUND_SLOTS.filter(
+      (slot) => nowMinutes >= counterRoundMinutes(slot) + 30
+    )
     let outletQuery = supabase.from('outlets').select('*').eq('is_active', true)
     if (actor.role !== 'CEO') {
       if (!actor.outletId) {
@@ -59,7 +74,7 @@ export async function GET() {
       outletQuery = outletQuery.eq('id', actor.outletId)
     }
 
-    const [outletsRes, salesRes, checklistsRes, complaintsRes, photosRes, alertsRes] =
+    const [outletsRes, salesRes, checklistsRes, complaintsRes, photosRes, alertsRes, counterRoundsRes] =
       await Promise.all([
         outletQuery,
         supabase.from('daily_sales').select('*').eq('date', date),
@@ -82,6 +97,10 @@ export async function GET() {
           .eq('is_read', false)
           .order('created_at', { ascending: false })
           .limit(50),
+        supabase
+          .from('counter_temperature_rounds')
+          .select('outlet_id, slot_key')
+          .eq('round_date', date),
       ])
 
     if (outletsRes.error) throw outletsRes.error
@@ -90,6 +109,11 @@ export async function GET() {
     if (complaintsRes.error) throw complaintsRes.error
     if (photosRes.error) throw photosRes.error
     if (alertsRes.error) throw alertsRes.error
+    if (counterRoundsRes.error && !isMissingTableError(counterRoundsRes.error)) {
+      throw counterRoundsRes.error
+    }
+
+    const signedPhotos = await signPhotoRows(photosRes.data ?? [])
 
     const outletIds = new Set((outletsRes.data ?? []).map((outlet) => outlet.id))
     const outlets = (outletsRes.data ?? []).map((outlet) => {
@@ -100,7 +124,7 @@ export async function GET() {
       const checklists = (checklistsRes.data ?? []).filter(
         (checklist) => checklist.outlet_id === outlet.id
       )
-      const photos = (photosRes.data ?? []).filter((photo) => photo.outlet_id === outlet.id)
+      const photos = signedPhotos.filter((photo) => photo.outlet_id === outlet.id)
       const flaggedPhotos = photos.filter((photo) => photo.ai_status === 'FLAGGED')
       const completedSlotKeys = new Set(
         checklists
@@ -112,16 +136,21 @@ export async function GET() {
           )
           .filter((key): key is string => Boolean(key))
       )
+      const completedCounterKeys = new Set(
+        (counterRoundsRes.error ? [] : counterRoundsRes.data ?? [])
+          .filter((round) => round.outlet_id === outlet.id)
+          .map((round) => round.slot_key)
+      )
 
       const missed = checklists.some((checklist) => checklist.status === 'MISSED')
       const late = checklists.some((checklist) => checklist.status === 'LATE')
       const highComplaint = complaints.some((complaint) => complaint.severity === 'HIGH')
       const overdueMissing = overdueSlots.some(
         (slot) => !completedSlotKeys.has(slot.key)
-      )
+      ) || overdueCounterSlots.some((slot) => !completedCounterKeys.has(slot.key))
       const dueMissing = expectedSlots.some(
         (slot) => !completedSlotKeys.has(slot.key)
-      )
+      ) || expectedCounterSlots.some((slot) => !completedCounterKeys.has(slot.key))
 
       let status: 'GREEN' | 'AMBER' | 'RED' = 'GREEN'
       if (missed || overdueMissing || highComplaint || flaggedPhotos.length > 0) status = 'RED'
@@ -139,10 +168,14 @@ export async function GET() {
         last_update: latestTimestamp ?? null,
         today_sales: sales?.total_sales ?? 0,
         complaint_count: complaints.length,
-        checklists_done: expectedSlots.filter((slot) =>
-          completedSlotKeys.has(slot.key)
+        checklists_done:
+          expectedSlots.filter((slot) => completedSlotKeys.has(slot.key)).length +
+          expectedCounterSlots.filter((slot) => completedCounterKeys.has(slot.key)).length,
+        checklists_total: expectedSlots.length + expectedCounterSlots.length,
+        counter_rounds_done: expectedCounterSlots.filter((slot) =>
+          completedCounterKeys.has(slot.key)
         ).length,
-        checklists_total: expectedSlots.length,
+        counter_rounds_total: expectedCounterSlots.length,
       }
     })
 
@@ -165,14 +198,14 @@ export async function GET() {
       compliance_rate: totalExpectedChecks
         ? Math.round((completedExpectedChecks / totalExpectedChecks) * 100)
         : 100,
-      photos_uploaded: (photosRes.data ?? []).filter((photo) =>
+      photos_uploaded: signedPhotos.filter((photo) =>
         outletIds.has(photo.outlet_id)
       ).length,
       alerts: (alertsRes.data ?? []).filter(
         (alert) => !alert.outlet_id || outletIds.has(alert.outlet_id)
       ),
       outlets,
-      recent_photos: (photosRes.data ?? [])
+      recent_photos: signedPhotos
         .filter((photo) => outletIds.has(photo.outlet_id))
         .slice(0, 12),
     })

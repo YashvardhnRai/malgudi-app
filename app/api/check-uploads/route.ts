@@ -3,6 +3,10 @@ import { getCeoEmails } from '@/lib/auth'
 import { getAuthActor } from '@/lib/auth-server'
 import { verifyReminderWorkflowToken } from '@/lib/github-oidc'
 import {
+  COUNTER_ROUND_SLOTS,
+  counterRoundMinutes,
+} from '@/lib/counter-rounds'
+import {
   deliverOperationalEmails,
   deliverOperationalPhoneAlerts,
 } from '@/lib/notification-delivery'
@@ -65,7 +69,10 @@ export async function GET(request: NextRequest) {
   const dueSlots = OPERATIONS_SLOTS.filter(
     (slot) => nowMinutes >= slot.hour * 60 + 30
   )
-  if (!dueSlots.length) {
+  const dueCounterSlots = COUNTER_ROUND_SLOTS.filter(
+    (slot) => nowMinutes >= counterRoundMinutes(slot) + 30
+  )
+  if (!dueSlots.length && !dueCounterSlots.length) {
     return NextResponse.json({ date: ist.date, checked: 0, reminders: 0 })
   }
 
@@ -102,6 +109,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle<{ email: string; phone: string | null }>()
 
     let missingOverdueCount = 0
+    let missingCounterCount = 0
 
     for (const slot of dueSlots) {
       const { data: submissions } = await supabase
@@ -239,6 +247,135 @@ export async function GET(request: NextRequest) {
             supabase.from('alerts').insert({
               outlet_id: outlet.id,
               alert_type: 'PHOTO_ESCALATION',
+              message: escalationMessage,
+              severity: 'CRITICAL',
+              is_read: false,
+            }),
+            deliverOperationalEmails(escalationNotifications),
+            deliverOperationalPhoneAlerts(escalationNotifications),
+          ])
+          reminders += escalationNotifications.length
+          resultStatus = 'escalated'
+        }
+      }
+
+      results.push({ outlet: outlet.name, slot: slot.key, status: resultStatus })
+    }
+
+    for (const slot of dueCounterSlots) {
+      const { data: round, error: roundError } = await supabase
+        .from('counter_temperature_rounds')
+        .select('id')
+        .eq('outlet_id', outlet.id)
+        .eq('round_date', ist.date)
+        .eq('slot_key', slot.key)
+        .maybeSingle()
+
+      if (roundError) {
+        if (roundError.code === '42P01' || roundError.code === 'PGRST205') {
+          return NextResponse.json(
+            { error: 'Counter rounds are waiting for the latest database migration' },
+            { status: 503 }
+          )
+        }
+        continue
+      }
+
+      if (round) {
+        results.push({ outlet: outlet.name, slot: slot.key, status: 'done' })
+        continue
+      }
+
+      missingCounterCount += 1
+      const marker = `[counter-slot:${slot.key}][date:${ist.date}]`
+      const escalationMarker = `${marker}[escalation]`
+      const { count: priorCount } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'COUNTER_ROUND_MISSED')
+        .eq('outlet_id', outlet.id)
+        .gte('created_at', start)
+        .ilike('message', `%${marker}%`)
+
+      let resultStatus: 'reminded' | 'already-reminded' | 'escalated' =
+        (priorCount ?? 0) > 0 ? 'already-reminded' : 'reminded'
+      const message = `${slot.label} is overdue at ${outlet.name}. Five photos and four thermometer readings are required. ${marker}`
+      const notifications = ceoEmails.map((email) => ({
+        recipient_email: email,
+        recipient_phone:
+          ceoContacts?.find((contact) => contact.email.toLowerCase() === email)?.phone ??
+          null,
+        recipient_role: 'CEO',
+        type: 'COUNTER_ROUND_MISSED',
+        title: 'Counter round missed',
+        message,
+        outlet_id: outlet.id,
+        manager_phone: outlet.manager_phone,
+        is_read: false,
+      }))
+
+      if (manager?.email) {
+        notifications.push({
+          recipient_email: manager.email,
+          recipient_phone: manager.phone ?? outlet.manager_phone,
+          recipient_role: 'MANAGER',
+          type: 'COUNTER_ROUND_REMINDER',
+          title: 'Counter round overdue',
+          message: `${slot.label} is overdue. Open the shift board and submit all five proofs now. ${marker}`,
+          outlet_id: outlet.id,
+          manager_phone: outlet.manager_phone,
+          is_read: false,
+        })
+      }
+
+      if ((priorCount ?? 0) === 0) {
+        await Promise.all([
+          supabase.from('notifications').insert(withoutDeliveryPhone(notifications)),
+          supabase.from('alerts').insert({
+            outlet_id: outlet.id,
+            alert_type: 'COUNTER_ROUND_MISSED',
+            message,
+            severity: 'MEDIUM',
+            is_read: false,
+          }),
+          deliverOperationalEmails(notifications),
+          deliverOperationalPhoneAlerts(notifications),
+        ])
+        reminders += notifications.length
+      }
+
+      const minutesLate = nowMinutes - counterRoundMinutes(slot)
+      if (minutesLate >= 90 || missingCounterCount >= 2) {
+        const { count: priorEscalationCount } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'COUNTER_ROUND_ESCALATION')
+          .eq('outlet_id', outlet.id)
+          .gte('created_at', start)
+          .ilike('message', `%${escalationMarker}%`)
+
+        if ((priorEscalationCount ?? 0) === 0) {
+          const escalationMessage = `${slot.label} is still missing at ${outlet.name}. Owner follow-up is required. ${escalationMarker}`
+          const escalationNotifications = ceoEmails.map((email) => ({
+            recipient_email: email,
+            recipient_phone:
+              ceoContacts?.find((contact) => contact.email.toLowerCase() === email)?.phone ??
+              null,
+            recipient_role: 'CEO',
+            type: 'COUNTER_ROUND_ESCALATION',
+            title: 'Counter round escalation',
+            message: escalationMessage,
+            outlet_id: outlet.id,
+            manager_phone: outlet.manager_phone,
+            is_read: false,
+          }))
+          await Promise.all([
+            supabase.from('notifications').insert(
+              withoutDeliveryPhone(escalationNotifications)
+            ),
+            supabase.from('alerts').insert({
+              outlet_id: outlet.id,
+              alert_type: 'COUNTER_ROUND_ESCALATION',
               message: escalationMessage,
               severity: 'CRITICAL',
               is_read: false,

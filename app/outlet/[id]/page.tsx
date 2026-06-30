@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import OutletDetail from '@/app/components/OutletDetail'
 import { requirePageActor } from '@/lib/auth-server'
 import { getIstDateRange } from '@/lib/operations'
+import { signPhotoRows } from '@/lib/photo-urls'
 import { getSupabaseServerClient } from '@/lib/supabase'
 
 export default async function OutletPage({
@@ -14,7 +15,7 @@ export default async function OutletPage({
 
   const supabase = getSupabaseServerClient()
   const { date, start, end } = getIstDateRange()
-  const [outletRes, photosRes, complaintsRes, salesRes, checklistsRes, managerRes] =
+  const [outletRes, photosRes, complaintsRes, salesRes, checklistsRes, managerRes, counterRoundsRes] =
     await Promise.all([
       supabase.from('outlets').select('*').eq('id', id).maybeSingle(),
       supabase
@@ -48,19 +49,43 @@ export default async function OutletPage({
         .eq('outlet_id', id)
         .eq('role', 'MANAGER')
         .maybeSingle(),
+      supabase
+        .from('counter_temperature_rounds')
+        .select('*')
+        .eq('outlet_id', id)
+        .eq('round_date', date)
+        .order('scheduled_at', { ascending: true }),
     ])
 
   if (!outletRes.data) redirect('/dashboard')
+
+  const counterRounds = counterRoundsRes.data ?? []
+  const counterRoundIds = counterRounds.map((round) => round.id)
+  const counterReadingsRes = counterRoundIds.length
+    ? await supabase
+        .from('counter_temperature_readings')
+        .select('*')
+        .in('round_id', counterRoundIds)
+        .order('created_at', { ascending: true })
+    : { data: [], error: null }
+  const signedPhotos = await signPhotoRows(photosRes.data ?? [])
+  const signedCounterReadings = await signPhotoRows(counterReadingsRes.data ?? [])
 
   return (
     <OutletDetail
       userName={actor.name}
       outlet={outletRes.data}
-      photos={photosRes.data ?? []}
+      photos={signedPhotos}
       complaints={complaintsRes.data ?? []}
       sales={salesRes.data ?? null}
       checklists={checklistsRes.data ?? []}
       manager={managerRes.data ?? null}
+      counterRounds={counterRounds.map((round) => ({
+        ...round,
+        readings: signedCounterReadings.filter(
+          (reading) => reading.round_id === round.id
+        ),
+      }))}
     />
   )
 }

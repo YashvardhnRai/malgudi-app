@@ -3,6 +3,15 @@
 
 begin;
 
+create table if not exists public.checklist_items (
+  id uuid primary key default gen_random_uuid(),
+  submission_id uuid not null references public.checklist_submissions(id) on delete cascade,
+  item_name text not null,
+  is_completed boolean not null default false,
+  photo_url text,
+  notes text
+);
+
 create or replace function public.current_app_role()
 returns text
 language sql
@@ -58,7 +67,25 @@ drop policy if exists "Insert sales" on public.daily_sales;
 drop policy if exists "Insert alerts" on public.alerts;
 drop policy if exists "Update complaints" on public.complaints;
 
+drop policy if exists "outlet read by assignment" on public.outlets;
+drop policy if exists "user read by self or ceo" on public.users;
+drop policy if exists "checklist read by assignment" on public.checklist_submissions;
+drop policy if exists "checklist item read by assignment" on public.checklist_items;
+drop policy if exists "photo read by assignment" on public.photo_uploads;
+drop policy if exists "complaint read by assignment" on public.complaints;
+drop policy if exists "sales read by assignment" on public.daily_sales;
+drop policy if exists "alert read by assignment" on public.alerts;
+drop policy if exists "schedule read by assignment" on public.upload_schedule;
+drop policy if exists "notification read by recipient" on public.notifications;
+
 drop policy if exists "Authenticated users can upload photos" on storage.objects;
+drop policy if exists "Public read photos" on storage.objects;
+drop policy if exists "photo object read by assignment" on storage.objects;
+drop policy if exists "photo object insert by assignment" on storage.objects;
+
+insert into storage.buckets (id, name, public)
+values ('photos', 'photos', false)
+on conflict (id) do update set public = false;
 
 create policy "outlet read by assignment"
 on public.outlets for select to authenticated
@@ -133,6 +160,26 @@ on public.notifications for select to authenticated
 using (
   lower(recipient_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
   or public.current_app_role() = 'CEO'
+);
+
+create policy "photo object read by assignment"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'photos'
+  and (
+    public.current_app_role() = 'CEO'
+    or (storage.foldername(name))[1] = public.current_app_outlet_id()::text
+  )
+);
+
+create policy "photo object insert by assignment"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'photos'
+  and (
+    public.current_app_role() = 'CEO'
+    or (storage.foldername(name))[1] = public.current_app_outlet_id()::text
+  )
 );
 
 create index if not exists idx_notifications_type_outlet_created

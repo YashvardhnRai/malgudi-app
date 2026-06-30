@@ -106,6 +106,31 @@ export interface InventoryLog {
   created_at: string
 }
 
+export interface CounterTemperatureReading {
+  id: string
+  round_id: string
+  item_key: 'BATTER' | 'COCONUT_CHUTNEY' | 'RED_CHUTNEY' | 'SAMBAR' | 'COUNTER'
+  temperature_c: number | null
+  photo_upload_id: string | null
+  photo_url: string | null
+  created_at: string
+}
+
+export interface CounterTemperatureRound {
+  id: string
+  outlet_id: string
+  submitted_by: string | null
+  submitted_by_email: string
+  round_date: string
+  slot_key: string
+  scheduled_at: string
+  submitted_at: string
+  status: 'SUBMITTED' | 'LATE'
+  note: string | null
+  created_at: string
+  readings: CounterTemperatureReading[]
+}
+
 export interface Alert {
   id: string
   outlet_id: string | null
@@ -145,6 +170,7 @@ export interface OutletDetail {
   complaints: Complaint[]
   attendance?: ShiftAttendance[]
   inventory?: InventoryLog[]
+  counter_rounds?: CounterTemperatureRound[]
   compliance_history: { date: string; rate: number }[]
 }
 

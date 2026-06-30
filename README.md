@@ -1,6 +1,6 @@
 # Malgudi Operations
 
-Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks eight daily proof slots, photo uploads with AI review, sales, attendance, inventory/wastage, complaints, manager presence, alerts, daily reports, and user access.
+Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks four general shift checks plus eight counter-temperature rounds, photo proof, sales, attendance, inventory/wastage, complaints, manager presence, alerts, daily reports, and employee access.
 
 ## Roles
 
@@ -8,13 +8,23 @@ Mobile-first restaurant operations for CEOs, managers, and staff. The app tracks
 - `MANAGER`: assigned outlet shift board, attendance, photo proof, sales, inventory/wastage, and issue reporting.
 - `STAFF`: assigned outlet worker home, attendance, shift proof, inventory/wastage, and issue reporting.
 
-Users sign in through Supabase magic links. Create manager and staff access from `/admin/users`.
+Users sign in through Supabase magic links. Create manager and staff access from `/admin/users`. Operational pages and outlet data require an approved `CEO`, `MANAGER`, or `STAFF` profile.
 
 ## Daily Schedule
 
-All times are Asia/Kolkata:
+All times are Asia/Kolkata.
 
-`08:00` opening, `10:00` Banmarie, `12:00` Banmarie, `14:00` Banmarie, `16:00` cleanliness, `18:00` Banmarie, `20:00` cleanliness, `22:00` closing.
+General checks: `08:00` opening, `16:00` cleanliness, `20:00` cleanliness, `22:00` closing.
+
+Counter temperature rounds: `07:30`, `09:30`, `11:30`, `13:30`, `15:30`, `17:30`, `19:30`, and `21:30`.
+
+Every counter round requires five fresh photos:
+
+1. All batter types, with thermometer reading.
+2. Coconut chutney, with thermometer reading.
+3. Red chutney, with thermometer reading.
+4. Sambar, with thermometer reading.
+5. One wide photo of the full kitchen counter.
 
 A slot becomes overdue after 30 minutes. Reminder rows are deduplicated by outlet, date, and slot.
 
@@ -41,15 +51,17 @@ Copy `.env.example` to `.env.local` and supply Supabase, AI, scheduler, and opti
 
 ## Database
 
-1. Apply `supabase/schema.sql` for a fresh project.
-2. Apply `supabase/migration_notifications.sql`.
-3. Apply `supabase/migrations/20260606_production_hardening.sql`.
-4. Apply `supabase/migrations/20260619_restaurant_features.sql`.
-5. Confirm the `photos` storage bucket exists and remains public-read.
+Run migrations in **Supabase Dashboard -> SQL Editor -> New query**. Open each file locally, paste the entire SQL into the editor, and click **Run**. Run one file at a time in this order:
 
-The hardening migration removes direct client mutation policies and limits authenticated reads to CEOs or the user’s assigned outlet. All writes pass through authenticated Next.js route handlers.
+1. `supabase/migrations/20260606_production_hardening.sql`
+2. `supabase/migrations/20260619_restaurant_features.sql`
+3. `supabase/migrations/20260630_counter_temperature_rounds.sql`
 
-The restaurant features migration adds shift attendance and inventory/wastage logs. The app shows a pending-migration notice on those features until the SQL has been applied.
+For a completely fresh project, apply `supabase/schema.sql` and `supabase/migration_notifications.sql` before the migrations above.
+
+The hardening migration removes direct client mutation policies, makes the photo bucket private, and limits authenticated reads to CEOs or the user's assigned outlet. All writes pass through authenticated Next.js route handlers, and photo pages use short-lived signed URLs.
+
+The restaurant features migration adds shift attendance and inventory/wastage logs. The counter-round migration adds the eight daily rounds and five required proof readings. The app shows a pending-migration notice until the SQL has been applied.
 
 ## Reminders
 
@@ -67,7 +79,7 @@ Push `main` to deploy through the linked Vercel project. After deployment:
 
 1. Check `/api/health` returns `status: ok`.
 2. Sign in with each role and verify role routing.
-3. Upload one photo from a phone and confirm it appears on the CEO dashboard.
+3. Complete one five-photo counter round from a phone and confirm all readings/photos appear for the CEO.
 4. Submit attendance, sales, inventory/wastage, and an issue from a manager account.
 5. Open `/reports/daily`, export CSV, and print/save the PDF report.
 6. Enable phone alerts from the CEO notification menu.

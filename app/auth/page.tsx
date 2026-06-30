@@ -32,7 +32,10 @@ export default function AuthPage() {
       }
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: callbackUrl.toString() },
+        options: {
+          emailRedirectTo: callbackUrl.toString(),
+          shouldCreateUser: false,
+        },
       })
       if (authError) throw authError
       setSent(true)
@@ -68,16 +71,16 @@ export default function AuthPage() {
 
         <div className="auth-preview-grid">
           <div>
-            <span>Live outlets</span>
-            <strong>13</strong>
+            <span>Counter rounds</span>
+            <strong>8</strong>
           </div>
           <div>
-            <span>Compliance</span>
-            <strong>96%</strong>
+            <span>Proof items</span>
+            <strong>5</strong>
           </div>
           <div>
-            <span>Alerts</span>
-            <strong>Instant</strong>
+            <span>Access</span>
+            <strong>Staff</strong>
           </div>
         </div>
       </section>
@@ -89,7 +92,7 @@ export default function AuthPage() {
               <div className="auth-form-icon">
                 <ShieldCheck size={22} />
               </div>
-              <span>Secure CEO and manager access</span>
+              <span>Secure Malgudi employee access</span>
               <h2>Sign in with magic link</h2>
               <p>Enter your invited email and we will send a one-click sign-in link.</p>
             </div>

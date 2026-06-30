@@ -9,7 +9,7 @@ type UserProfile = {
 }
 
 const CEO_PATHS = ['/dashboard', '/admin', '/outlet', '/complaints', '/launch', '/reports']
-const OPERATIONS_PATHS = ['/manager', '/upload', '/report']
+const OPERATIONS_PATHS = ['/worker', '/manager', '/upload', '/report']
 
 function copyCookies(source: NextResponse, target: NextResponse) {
   source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie))
@@ -55,6 +55,7 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   const isProtected =
+    pathname === '/' ||
     CEO_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
     OPERATIONS_PATHS.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`)
@@ -132,6 +133,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     '/',
+    '/worker/:path*',
     '/dashboard/:path*',
     '/admin/:path*',
     '/outlet/:path*',

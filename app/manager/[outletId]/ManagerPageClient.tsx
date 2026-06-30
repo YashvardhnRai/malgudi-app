@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import WorkerDock from "@/app/components/WorkerDock";
 import ManagerPresenceHeartbeat from "@/app/components/ManagerPresenceHeartbeat";
+import CounterTemperatureRoundPanel from "@/app/components/CounterTemperatureRound";
 import {
   decodeChecklistNotes,
   getIstParts,
@@ -242,6 +243,7 @@ export default function ManagerPageClient({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [inventoryError, setInventoryError] = useState("");
+  const [counterSummary, setCounterSummary] = useState({ completed: 0, expected: 8 });
 
   const completedSlotKeys = useMemo(
     () =>
@@ -503,7 +505,9 @@ export default function ManagerPageClient({
   const completedCount = TASKS.filter((task) =>
     completedSlotKeys.has(task.key)
   ).length;
-  const completion = Math.round((completedCount / TASKS.length) * 100);
+  const totalCompleted = completedCount + counterSummary.completed;
+  const totalExpected = TASKS.length + counterSummary.expected;
+  const completion = Math.round((totalCompleted / totalExpected) * 100);
   const currentHour = getIstParts().hour;
   const statusTone =
     uploadStatus?.type === "MISSED" ? "danger" :
@@ -547,7 +551,7 @@ export default function ManagerPageClient({
           <div className="manager-progress-track">
             <span style={{ width: `${completion}%` }} />
           </div>
-          <p>{completedCount} of {TASKS.length} scheduled checks completed.</p>
+          <p>{totalCompleted} of {totalExpected} scheduled checks completed.</p>
         </section>
 
         <section className="manager-attendance-card">
@@ -606,6 +610,11 @@ export default function ManagerPageClient({
             </div>
           )}
         </section>
+
+        <CounterTemperatureRoundPanel
+          outletId={outletId}
+          onSummaryChange={setCounterSummary}
+        />
 
         {uploadStatus && uploadStatus.type !== "NONE" && (
           <section className={`manager-alert ${statusTone}`}>

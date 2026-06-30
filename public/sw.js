@@ -1,8 +1,5 @@
-const CACHE_NAME = 'malgudi-worker-v4-20260619'
+const CACHE_NAME = 'malgudi-worker-v5-20260630'
 const STATIC_ASSETS = [
-  '/worker',
-  '/launch',
-  '/reports/daily',
   '/auth',
   '/manifest.json',
   '/icon-192.png',
@@ -47,7 +44,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/worker'))
+      fetch(request).catch(() => caches.match('/auth'))
     )
     return
   }

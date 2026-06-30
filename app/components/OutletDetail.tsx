@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import NavHeader from "./NavHeader";
 import PhotoUpload from "./PhotoUpload";
 import {
+  COUNTER_ROUND_SLOTS,
+  formatCounterRoundTime,
+} from "@/lib/counter-rounds";
+import {
   decodeChecklistNotes,
   inferLegacySlotKey,
   OPERATIONS_SLOTS,
@@ -13,6 +17,7 @@ import {
 import type {
   ChecklistSubmission,
   Complaint,
+  CounterTemperatureRound,
   DailySales,
   Outlet,
   PhotoUpload as PhotoUploadRow,
@@ -27,12 +32,14 @@ interface Props {
   sales: DailySales | null;
   checklists: ChecklistSubmission[];
   manager: Pick<User, "name" | "phone" | "email"> | null;
+  counterRounds: CounterTemperatureRound[];
 }
 
 export default function OutletDetail({
   userName,
   outlet, photos, complaints,
   sales, checklists, manager,
+  counterRounds,
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
@@ -323,6 +330,32 @@ export default function OutletDetail({
                   </div>
                 );
               })}
+            </div>
+
+            <div className="outlet-counter-rounds">
+              <div className="outlet-counter-rounds-head">
+                <div>
+                  <span>Two-hour control</span>
+                  <h3>Counter temperature rounds</h3>
+                </div>
+                <strong>{counterRounds.length}/8</strong>
+              </div>
+              <div className="outlet-counter-rounds-grid">
+                {COUNTER_ROUND_SLOTS.map((slot) => {
+                  const round = counterRounds.find((item) => item.slot_key === slot.key);
+                  const temperatures = round?.readings
+                    .filter((reading) => reading.temperature_c !== null)
+                    .map((reading) => `${reading.temperature_c} C`)
+                    .join(" / ");
+                  return (
+                    <article className={round ? "is-complete" : ""} key={slot.key}>
+                      <span>{formatCounterRoundTime(slot.hour, slot.minute)}</span>
+                      <strong>{round ? "Complete" : "Pending"}</strong>
+                      <small>{temperatures || "5 photos + 4 temperatures"}</small>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Recent photos */}

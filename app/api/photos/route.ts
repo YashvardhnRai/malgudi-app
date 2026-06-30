@@ -16,6 +16,7 @@ import { PHOTO_CATEGORIES } from '@/lib/validation'
 import type { PhotoUpload } from '@/lib/types'
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024
+const MAX_REQUEST_PHOTO_BYTES = 4 * 1024 * 1024
 const MAX_PHOTOS = 5
 const AI_MEDIA_TYPES = new Set([
   'image/jpeg',
@@ -131,6 +132,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Each photo must be under 8 MB' }, { status: 413 })
     }
   }
+  if (photos.reduce((total, photo) => total + photo.size, 0) > MAX_REQUEST_PHOTO_BYTES) {
+    return NextResponse.json(
+      { error: 'The selected photos are too large. Retake them with the phone camera.' },
+      { status: 413 }
+    )
+  }
 
   const slot = slotKey ? getSlotByKey(slotKey) : null
   if (slotKey && !slot) {
@@ -170,9 +177,10 @@ export async function POST(request: NextRequest) {
         })
       if (storageError) throw storageError
 
-      const { data: publicData } = supabase.storage
+      const { data: signedData, error: signedError } = await supabase.storage
         .from('photos')
-        .getPublicUrl(storageData.path)
+        .createSignedUrl(storageData.path, 6 * 60 * 60)
+      if (signedError) throw signedError
 
       const { data: record, error: insertError } = await supabase
         .from('photo_uploads')
@@ -180,7 +188,7 @@ export async function POST(request: NextRequest) {
           outlet_id: outletId,
           submitted_by: actor.profileId,
           category,
-          photo_url: publicData.publicUrl,
+          photo_url: storageData.path,
           caption: caption || (slot ? `${slot.label} [${slot.key}]` : null),
           ai_status: aiResult.status,
           ai_notes: aiResult.notes,
@@ -205,7 +213,7 @@ export async function POST(request: NextRequest) {
 
       uploads.push({
         id: record.id,
-        url: publicData.publicUrl,
+        url: signedData.signedUrl,
         aiStatus: aiResult.status,
         aiNotes: aiResult.notes,
       })

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { CloudOff, CloudUpload } from 'lucide-react'
 import {
+  flushPendingCounterRounds,
   flushPendingPhotoUploads,
+  getPendingCounterRoundCount,
   getPendingUploadCount,
 } from '@/lib/photo-upload-client'
 
@@ -15,15 +17,23 @@ export default function OfflineUploadSync() {
     let mounted = true
 
     const refresh = async () => {
-      const count = await getPendingUploadCount()
+      const [photoCount, roundCount] = await Promise.all([
+        getPendingUploadCount(),
+        getPendingCounterRoundCount(),
+      ])
+      const count = photoCount + roundCount
       if (mounted) setPending(count)
     }
     const sync = async () => {
-      const result = await flushPendingPhotoUploads()
+      const [photoResult, roundResult] = await Promise.all([
+        flushPendingPhotoUploads(),
+        flushPendingCounterRounds(),
+      ])
       if (!mounted) return
-      setPending(result.remaining)
-      if (result.sent) {
-        setSent(result.sent)
+      setPending(photoResult.remaining + roundResult.remaining)
+      const sentCount = photoResult.sent + roundResult.sent
+      if (sentCount) {
+        setSent(sentCount)
         window.setTimeout(() => setSent(0), 4000)
       }
     }

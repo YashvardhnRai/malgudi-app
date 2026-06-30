@@ -21,7 +21,7 @@ export default function ServiceWorkerRegistration() {
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
 
     navigator.serviceWorker
-      .register('/sw.js?v=20260619', { updateViaCache: 'none' })
+      .register('/sw.js?v=20260630', { updateViaCache: 'none' })
       .then((registration) => {
         void registration.update()
         if (registration.waiting) registration.waiting.postMessage('SKIP_WAITING')

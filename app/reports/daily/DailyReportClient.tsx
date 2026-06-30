@@ -27,6 +27,9 @@ type DailyOutletReport = {
   compliance_rate: number
   checks_done: number
   checks_expected: number
+  counter_rounds_done: number
+  counter_rounds_expected: number
+  latest_temperatures: string[]
   photos: number
   flagged_photos: number
   complaints: number
@@ -271,6 +274,9 @@ export default function DailyReportClient({ userName }: { userName: string }) {
                     <span>{formatMoney(outlet.sales)}</span>
                     <span>
                       {outlet.checks_done}/{outlet.checks_expected} ({outlet.compliance_rate}%)
+                      <small>
+                        Counter {outlet.counter_rounds_done}/{outlet.counter_rounds_expected}
+                      </small>
                     </span>
                     <span>
                       {outlet.photos}
@@ -285,6 +291,9 @@ export default function DailyReportClient({ userName }: { userName: string }) {
                     </span>
                     <span>
                       {outlet.wastage_qty}
+                      {outlet.latest_temperatures.length ? (
+                        <small>{outlet.latest_temperatures.join(', ')}</small>
+                      ) : null}
                       {outlet.top_wastage_items.length ? (
                         <small>{outlet.top_wastage_items.join(', ')}</small>
                       ) : null}

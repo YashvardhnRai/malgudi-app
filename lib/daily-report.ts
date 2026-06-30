@@ -1,6 +1,11 @@
 import 'server-only'
 
 import {
+  COUNTER_ROUND_ITEMS,
+  COUNTER_ROUND_SLOTS,
+  counterRoundMinutes,
+} from '@/lib/counter-rounds'
+import {
   decodeChecklistNotes,
   getIstDateRange,
   getIstParts,
@@ -69,6 +74,20 @@ type InventoryRow = {
   closing_qty: number | null
 }
 
+type CounterRoundRow = {
+  id: string
+  outlet_id: string
+  slot_key: string
+  status: string
+  scheduled_at: string
+}
+
+type CounterReadingRow = {
+  round_id: string
+  item_key: string
+  temperature_c: number | null
+}
+
 export type DailyOutletReport = {
   outlet_id: string
   outlet_name: string
@@ -83,6 +102,9 @@ export type DailyOutletReport = {
   compliance_rate: number
   checks_done: number
   checks_expected: number
+  counter_rounds_done: number
+  counter_rounds_expected: number
+  latest_temperatures: string[]
   photos: number
   flagged_photos: number
   complaints: number
@@ -125,6 +147,18 @@ function expectedSlotsForDate(date: string, now = new Date()) {
   return OPERATIONS_SLOTS.filter((slot) => nowMinutes >= slot.hour * 60)
 }
 
+function expectedCounterSlotsForDate(date: string, now = new Date()) {
+  const today = getIstParts(now).date
+  if (date < today) return COUNTER_ROUND_SLOTS
+  if (date > today) return []
+
+  const ist = getIstParts(now)
+  const nowMinutes = ist.hour * 60 + ist.minute
+  return COUNTER_ROUND_SLOTS.filter(
+    (slot) => nowMinutes >= counterRoundMinutes(slot)
+  )
+}
+
 function sumNumber<T>(items: T[], getValue: (item: T) => number | null | undefined) {
   return items.reduce((sum, item) => sum + Number(getValue(item) ?? 0), 0)
 }
@@ -145,6 +179,7 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
   const supabase = getSupabaseServerClient()
   const { start, end } = getIstDateRange(new Date(`${date}T00:00:00+05:30`))
   const expectedSlots = expectedSlotsForDate(date)
+  const expectedCounterSlots = expectedCounterSlotsForDate(date)
   const pendingMigration: string[] = []
 
   const [
@@ -156,6 +191,7 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
     alertsRes,
     attendanceRes,
     inventoryRes,
+    counterRoundsRes,
   ] = await Promise.all([
     supabase
       .from('outlets')
@@ -191,6 +227,10 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
       .from('inventory_logs')
       .select('outlet_id, item_name, unit, wasted_qty, closing_qty')
       .eq('log_date', date),
+    supabase
+      .from('counter_temperature_rounds')
+      .select('id, outlet_id, slot_key, status, scheduled_at')
+      .eq('round_date', date),
   ])
 
   if (outletsRes.error) throw outletsRes.error
@@ -210,8 +250,28 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
   }
   else if (inventoryRes.error) throw inventoryRes.error
 
+  if (counterRoundsRes.error && isMissingTableError(counterRoundsRes.error)) {
+    pendingMigration.push('counter_temperature_rounds')
+  }
+  else if (counterRoundsRes.error) throw counterRoundsRes.error
+
   const attendance = (attendanceRes.error ? [] : attendanceRes.data ?? []) as AttendanceRow[]
   const inventory = (inventoryRes.error ? [] : inventoryRes.data ?? []) as InventoryRow[]
+  const counterRounds = (counterRoundsRes.error ? [] : counterRoundsRes.data ?? []) as CounterRoundRow[]
+  const counterRoundIds = counterRounds.map((round) => round.id)
+  const counterReadingsRes = counterRoundIds.length
+    ? await supabase
+        .from('counter_temperature_readings')
+        .select('round_id, item_key, temperature_c')
+        .in('round_id', counterRoundIds)
+    : { data: [], error: null }
+  if (counterReadingsRes.error && isMissingTableError(counterReadingsRes.error)) {
+    pendingMigration.push('counter_temperature_readings')
+  }
+  else if (counterReadingsRes.error) throw counterReadingsRes.error
+  const counterReadings = (counterReadingsRes.error
+    ? []
+    : counterReadingsRes.data ?? []) as CounterReadingRow[]
 
   const outlets = ((outletsRes.data ?? []) as OutletRow[]).map((outlet) => {
     const sales = ((salesRes.data ?? []) as SalesRow[]).filter(
@@ -231,6 +291,7 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
     )
     const outletAttendance = attendance.filter((row) => row.outlet_id === outlet.id)
     const inventoryLogs = inventory.filter((row) => row.outlet_id === outlet.id)
+    const outletCounterRounds = counterRounds.filter((row) => row.outlet_id === outlet.id)
     const completedSlotKeys = new Set(
       checklists
         .filter((checklist) => checklist.status !== 'MISSED')
@@ -241,8 +302,14 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
         .filter((key): key is string => Boolean(key))
     )
 
-    const checksExpected = expectedSlots.length
-    const checksDone = expectedSlots.filter((slot) => completedSlotKeys.has(slot.key)).length
+    const completedCounterKeys = new Set(outletCounterRounds.map((round) => round.slot_key))
+    const counterRoundsDone = expectedCounterSlots.filter((slot) =>
+      completedCounterKeys.has(slot.key)
+    ).length
+    const checksExpected = expectedSlots.length + expectedCounterSlots.length
+    const checksDone =
+      expectedSlots.filter((slot) => completedSlotKeys.has(slot.key)).length +
+      counterRoundsDone
     const complianceRate = checksExpected
       ? Math.round((checksDone / checksExpected) * 100)
       : 100
@@ -250,6 +317,22 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
     const flaggedPhotos = photos.filter((row) => row.ai_status === 'FLAGGED').length
     const unreadAlerts = alerts.filter((row) => !row.is_read).length
     const wastageQty = sumNumber(inventoryLogs, (row) => row.wasted_qty)
+    const latestCounterRound = [...outletCounterRounds]
+      .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))[0]
+    const latestTemperatures = latestCounterRound
+      ? counterReadings
+          .filter(
+            (reading) =>
+              reading.round_id === latestCounterRound.id &&
+              reading.temperature_c !== null
+          )
+          .map((reading) => {
+            const item = COUNTER_ROUND_ITEMS.find(
+              (candidate) => candidate.key === reading.item_key
+            )
+            return `${item?.shortLabel ?? reading.item_key} ${reading.temperature_c} C`
+          })
+      : []
 
     let status: DailyOutletReport['status'] = 'GREEN'
     if (complianceRate < 75 || highComplaints > 0 || flaggedPhotos > 0) status = 'RED'
@@ -271,6 +354,9 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
       compliance_rate: complianceRate,
       checks_done: checksDone,
       checks_expected: checksExpected,
+      counter_rounds_done: counterRoundsDone,
+      counter_rounds_expected: expectedCounterSlots.length,
+      latest_temperatures: latestTemperatures,
       photos: photos.length,
       flagged_photos: flaggedPhotos,
       complaints: complaints.length,
@@ -331,6 +417,9 @@ export function dailyReportToCsv(report: DailyReport) {
     'Compliance',
     'Checks Done',
     'Checks Expected',
+    'Counter Rounds Done',
+    'Counter Rounds Expected',
+    'Latest Temperatures',
     'Photos',
     'Flagged Photos',
     'Complaints',
@@ -357,6 +446,9 @@ export function dailyReportToCsv(report: DailyReport) {
     `${outlet.compliance_rate}%`,
     outlet.checks_done,
     outlet.checks_expected,
+    outlet.counter_rounds_done,
+    outlet.counter_rounds_expected,
+    outlet.latest_temperatures.join('; '),
     outlet.photos,
     outlet.flagged_photos,
     outlet.complaints,
