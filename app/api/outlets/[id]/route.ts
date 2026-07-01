@@ -3,23 +3,6 @@ import { authorizeApi } from '@/lib/auth-server'
 import { getIstDateRange } from '@/lib/operations'
 import { signPhotoRows } from '@/lib/photo-urls'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
-import { getMockOutletDetail } from '@/lib/mock-data'
-
-const SEEDED_OUTLET_ID_TO_MOCK_ID: Record<string, string> = {
-  '00000000-0000-0000-0000-000000000001': 'outlet-bandra',
-  '00000000-0000-0000-0000-000000000002': 'outlet-juhu',
-  '00000000-0000-0000-0000-000000000003': 'outlet-andheri',
-  '00000000-0000-0000-0000-000000000004': 'outlet-powai',
-  '00000000-0000-0000-0000-000000000005': 'outlet-dadar',
-  '00000000-0000-0000-0000-000000000006': 'outlet-colaba',
-  '00000000-0000-0000-0000-000000000007': 'outlet-cp',
-  '00000000-0000-0000-0000-000000000008': 'outlet-hk',
-  '00000000-0000-0000-0000-000000000009': 'outlet-saket',
-  '00000000-0000-0000-0000-00000000000a': 'outlet-dm',
-  '00000000-0000-0000-0000-00000000000b': 'outlet-jbr',
-  '00000000-0000-0000-0000-00000000000c': 'outlet-bb',
-  '00000000-0000-0000-0000-00000000000d': 'outlet-difc',
-}
 
 function isMissingTableError(error: { code?: string }) {
   return error.code === '42P01' || error.code === 'PGRST205'
@@ -37,13 +20,7 @@ export async function GET(
   if (access.response) return access.response
 
   if (!isSupabaseConfigured) {
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Operations database unavailable' }, { status: 503 })
-    }
-    const detail = getMockOutletDetail(SEEDED_OUTLET_ID_TO_MOCK_ID[id] ?? id)
-    return detail
-      ? NextResponse.json(detail)
-      : NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Operations database unavailable' }, { status: 503 })
   }
 
   try {

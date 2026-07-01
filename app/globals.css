@@ -330,6 +330,66 @@ input:focus {
   line-height: 1.75;
 }
 
+.ops-hero-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.ops-hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 17px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff8ed;
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.ops-hero-actions a:first-child {
+  border-color: #e0522d;
+  background: #e0522d;
+  box-shadow: 0 10px 24px rgba(224, 82, 45, 0.24);
+}
+
+.ops-hero-actions a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.ops-hero-actions a:first-child:hover {
+  border-color: #f06a45;
+  background: #f06a45;
+}
+
+.ops-hero-actions a:active {
+  transform: translateY(1px);
+}
+
+.ops-hero-actions a:focus-visible {
+  outline: 3px solid rgba(255, 248, 237, 0.92);
+  outline-offset: 3px;
+}
+
+.ops-data-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  color: rgba(255, 248, 237, 0.66);
+  font-size: 11px;
+  font-weight: 750;
+}
+
 .ops-hero-panel {
   display: grid;
   gap: 18px;
@@ -5260,6 +5320,14 @@ input:focus {
 
   .ops-hero h1 {
     font-size: 42px;
+  }
+
+  .ops-hero-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-hero-actions a {
+    width: 100%;
   }
 
   .ops-hero-panel {

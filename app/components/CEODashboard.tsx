@@ -11,6 +11,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Download,
+  Database,
   IndianRupee,
   LayoutDashboard,
   MapPin,
@@ -449,12 +450,16 @@ export default function CEODashboard({ userName }: { userName: string }) {
             <div className="ops-hero-actions">
               <Link href="/reports/daily">
                 <CalendarDays size={16} />
-                Daily report
+                View daily report
               </Link>
               <a href="/api/reports/daily?format=csv">
                 <Download size={16} />
-                Excel export
+                Download Excel
               </a>
+            </div>
+            <div className="ops-data-source">
+              <Database size={13} />
+              Live Supabase data
             </div>
           </div>
 
@@ -604,7 +609,7 @@ export default function CEODashboard({ userName }: { userName: string }) {
           <div className="ops-empty">
             <ClipboardCheck size={28} />
             <strong>No outlet data available</strong>
-            <span>Connect Supabase seed data or use demo fallback data.</span>
+            <span>No active outlets were returned by the restaurant database.</span>
           </div>
         )}
       </main>

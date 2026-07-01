@@ -118,19 +118,7 @@ export default function AdminUsersPage() {
     }
 
     if (!isSupabaseConfigured) {
-      const demoUser: User = {
-        id: `demo-${Date.now()}`,
-        created_at: new Date().toISOString(),
-        name: form.name,
-        email: form.email,
-        phone: form.phone || null,
-        role: form.role,
-        outlet_id: form.outlet_id,
-      };
-      setUsers((current) => [demoUser, ...current]);
-      setSuccess(`Demo user ${form.name} added locally.`);
-      setForm({ ...EMPTY_FORM, outlet_id: outlets[0]?.id || "" });
-      setShowForm(false);
+      setFormError("The restaurant database is unavailable. No user was added.");
       setSubmitting(false);
       return;
     }
@@ -288,7 +276,7 @@ export default function AdminUsersPage() {
         {!isSupabaseConfigured && (
           <div className="admin-notice warning">
             <AlertTriangle size={17} />
-            Demo mode is active. Added users stay local until Supabase is configured.
+            The restaurant database is unavailable. User changes are disabled.
           </div>
         )}
 

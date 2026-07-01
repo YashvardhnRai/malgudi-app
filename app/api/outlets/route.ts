@@ -14,7 +14,6 @@ import {
 } from '@/lib/operations'
 import { getSupabaseServerClient, isSupabaseConfigured } from '@/lib/supabase'
 import { signPhotoRows } from '@/lib/photo-urls'
-import { getMockDashboard } from '@/lib/mock-data'
 import { cleanText } from '@/lib/validation'
 
 type CreateOutletBody = {
@@ -35,18 +34,7 @@ export async function GET() {
   const actor = access.actor!
 
   if (!isSupabaseConfigured) {
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Operations database unavailable' }, { status: 503 })
-    }
-    const dashboard = getMockDashboard()
-    return NextResponse.json(
-      actor.role === 'CEO'
-        ? dashboard
-        : {
-            ...dashboard,
-            outlets: dashboard.outlets.filter((outlet) => outlet.id === actor.outletId),
-          }
-    )
+    return NextResponse.json({ error: 'Operations database unavailable' }, { status: 503 })
   }
 
   try {

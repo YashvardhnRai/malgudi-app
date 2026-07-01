@@ -159,9 +159,9 @@ export default function DailyReportClient({ userName }: { userName: string }) {
               <RefreshCw size={16} className={loading ? 'spin' : ''} />
               Refresh
             </button>
-            <a href={csvUrl}>
+            <a href={csvUrl} download={`malgudi-daily-${date}.csv`}>
               <Download size={16} />
-              Excel CSV
+              Download Excel
             </a>
             <button type="button" onClick={() => window.print()}>
               <Printer size={16} />

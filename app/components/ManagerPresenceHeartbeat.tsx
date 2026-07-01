@@ -48,7 +48,7 @@ export default function ManagerPresenceHeartbeat({
   )
 
   const displayState = useMemo(() => {
-    if (!isSupabaseConfigured) return 'Demo mode'
+    if (!isSupabaseConfigured) return 'Database unavailable'
     if (state === 'online') return 'CEO sees online'
     if (state === 'connecting') return 'Going online'
     return 'Presence offline'
