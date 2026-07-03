@@ -792,7 +792,7 @@ input:focus {
 }
 
 .ops-outlet-place {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 5px;
   margin-top: 7px;
@@ -802,7 +802,7 @@ input:focus {
 }
 
 .ops-manager-presence {
-  display: inline-grid;
+  display: grid;
   grid-template-columns: 9px minmax(0, auto);
   column-gap: 7px;
   row-gap: 3px;
@@ -967,6 +967,19 @@ input:focus {
   color: #1b2237;
   font-family: var(--font-display);
   font-size: 22px;
+}
+
+.ops-empty button {
+  margin-top: 4px;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(224, 82, 45, 0.3);
+  border-radius: 7px;
+  background: #fff;
+  color: #e0522d;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .premium-nav {
@@ -2752,6 +2765,12 @@ input:focus {
   border-radius: 6px;
   font-size: 12px;
   font-weight: 800;
+}
+
+.manager-retry-trigger {
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .manager-upload-slot {

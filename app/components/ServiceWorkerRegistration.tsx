@@ -2,6 +2,21 @@
 
 import { useEffect } from 'react'
 
+const DIRTY_CHECK_RETRY_MS = 4000
+
+function hasUnsavedFormInput() {
+  const fields = document.querySelectorAll('input, textarea')
+  for (const field of Array.from(fields)) {
+    if (field instanceof HTMLInputElement) {
+      if (field.type === 'checkbox' || field.type === 'radio' || field.type === 'file') continue
+      if (field.value.trim().length > 0) return true
+    } else if (field instanceof HTMLTextAreaElement) {
+      if (field.value.trim().length > 0) return true
+    }
+  }
+  return false
+}
+
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (
@@ -12,10 +27,24 @@ export default function ServiceWorkerRegistration() {
     }
 
     let reloading = false
-    const handleControllerChange = () => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    // A new deploy shouldn't wipe an in-progress form (sales, inventory,
+    // counter-round notes, etc.) mid-shift — wait for the form to clear
+    // (submitted, reset, or the user navigated to a page without one)
+    // before reloading to pick up the new service worker.
+    const reloadWhenSafe = () => {
       if (reloading) return
+      if (hasUnsavedFormInput()) {
+        retryTimer = setTimeout(reloadWhenSafe, DIRTY_CHECK_RETRY_MS)
+        return
+      }
       reloading = true
       window.location.reload()
+    }
+
+    const handleControllerChange = () => {
+      reloadWhenSafe()
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
@@ -41,6 +70,7 @@ export default function ServiceWorkerRegistration() {
         'controllerchange',
         handleControllerChange
       )
+      if (retryTimer) clearTimeout(retryTimer)
     }
   }, [])
 

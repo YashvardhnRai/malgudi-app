@@ -40,6 +40,7 @@ import {
   type OperationsSlot,
 } from "@/lib/operations";
 import { submitPhotoUpload } from "@/lib/photo-upload-client";
+import { fetchWithTimeout, FetchTimeoutError } from "@/lib/fetch-with-timeout";
 import type {
   ChecklistSubmission,
   Outlet,
@@ -143,6 +144,9 @@ const CATEGORIES: CategoryDefinition[] = [
 type TaskTone = "done" | "now" | "overdue" | "upcoming";
 const OUTLET_STORAGE_KEY = "malgudi-worker-outlet";
 const OUTLET_DATA_STORAGE_KEY = "malgudi-worker-outlet-data";
+// Pre-launch: attendance check-in/out is hidden from the UI (not stable enough
+// for Monday's launch) but the API route, DB table, and this code stay intact.
+const ATTENDANCE_UI_ENABLED = false;
 
 function formatHour(h: number) {
   const hour = h % 12 || 12;
@@ -233,6 +237,7 @@ export default function ManagerPageClient({
   const [salesState, setSalesState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [salesError, setSalesError] = useState("");
   const [attendance, setAttendance] = useState<AttendanceRow | null>(null);
   const [attendanceState, setAttendanceState] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -367,7 +372,7 @@ export default function ManagerPageClient({
         } catch {}
       }
       void loadData();
-      void loadAttendance();
+      if (ATTENDANCE_UI_ENABLED) void loadAttendance();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outletId, actorEmail]);
@@ -423,8 +428,9 @@ export default function ManagerPageClient({
 
   async function saveSales() {
     setSalesState("saving");
+    setSalesError("");
     try {
-      const response = await fetch("/api/sales", {
+      const response = await fetchWithTimeout("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -440,7 +446,14 @@ export default function ManagerPageClient({
       if (!response.ok) throw new Error(payload.error || "Unable to save sales");
       setSalesState("saved");
       window.setTimeout(() => setSalesState("idle"), 3000);
-    } catch {
+    } catch (error) {
+      setSalesError(
+        error instanceof FetchTimeoutError
+          ? "Still trying... tap to retry."
+          : error instanceof Error
+          ? error.message
+          : "Sales could not be saved. Check the values and try again."
+      );
       setSalesState("error");
     }
   }
@@ -554,6 +567,7 @@ export default function ManagerPageClient({
           <p>{totalCompleted} of {totalExpected} scheduled checks completed.</p>
         </section>
 
+        {ATTENDANCE_UI_ENABLED && (
         <section className="manager-attendance-card">
           <div className="manager-attendance-copy">
             <span>
@@ -610,6 +624,7 @@ export default function ManagerPageClient({
             </div>
           )}
         </section>
+        )}
 
         <CounterTemperatureRoundPanel
           outletId={outletId}
@@ -759,10 +774,14 @@ export default function ManagerPageClient({
           </button>
 
           {salesState === "error" && (
-            <div className="manager-upload-error">
+            <button
+              type="button"
+              className="manager-upload-error manager-retry-trigger"
+              onClick={saveSales}
+            >
               <AlertTriangle size={16} />
-              Sales could not be saved. Check the values and try again.
-            </div>
+              {salesError || "Sales could not be saved. Tap to retry."}
+            </button>
           )}
         </section>
           </>

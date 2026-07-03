@@ -605,6 +605,15 @@ export default function CEODashboard({ userName }: { userName: string }) {
               />
             ))}
           </section>
+        ) : loadError ? (
+          <div className="ops-empty">
+            <AlertTriangle size={28} />
+            <strong>Couldn&apos;t refresh outlets</strong>
+            <span>{loadError}</span>
+            <button type="button" onClick={() => void loadDashboard()}>
+              Tap to retry
+            </button>
+          </div>
         ) : (
           <div className="ops-empty">
             <ClipboardCheck size={28} />

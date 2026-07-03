@@ -2,6 +2,7 @@
 
 import type { PhotoUpload } from '@/lib/types'
 import type { CounterRoundItemKey } from '@/lib/counter-rounds'
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 
 const DB_NAME = 'malgudi-operations'
 const STORE_NAME = 'pending-photo-uploads'
@@ -236,7 +237,7 @@ async function sendUpload(upload: {
   slotKey?: string | null
   files: Array<File | QueuedFile>
 }): Promise<NonNullable<PhotoUploadResult['data']>> {
-  const response = await fetch('/api/photos', {
+  const response = await fetchWithTimeout('/api/photos', {
     method: 'POST',
     body: buildFormData(upload),
   })
@@ -293,7 +294,7 @@ async function sendCounterRound(round: {
     file: File | QueuedFile
   }>
 }) {
-  const response = await fetch('/api/counter-rounds', {
+  const response = await fetchWithTimeout('/api/counter-rounds', {
     method: 'POST',
     body: buildCounterRoundFormData(round),
   })
@@ -316,10 +317,12 @@ export async function submitPhotoUpload(
     const data = await sendUpload({ ...payload, files })
     return { queued: false, data }
   } catch (error) {
-    if (
-      error instanceof UploadHttpError ||
-      navigator.onLine
-    ) {
+    // A real HTTP response (validation error, auth failure, etc.) means the
+    // request reached the server — retrying locally won't help, surface it.
+    // Anything else (including a timeout) is treated as a network failure
+    // and queued, regardless of navigator.onLine: restaurant WiFi can report
+    // "connected" while there's no real internet behind it.
+    if (error instanceof UploadHttpError) {
       throw error
     }
 
@@ -388,7 +391,10 @@ export async function submitCounterRound(
     const data = await sendCounterRound({ ...payload, items: compressedItems })
     return { queued: false, data }
   } catch (error) {
-    if (error instanceof UploadHttpError || navigator.onLine) throw error
+    // See submitPhotoUpload: only a real HTTP error response is re-thrown;
+    // any other failure (network error or timeout) is queued regardless of
+    // navigator.onLine.
+    if (error instanceof UploadHttpError) throw error
 
     await addQueuedCounterRound({
       id: crypto.randomUUID(),
