@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import NavHeader from '@/app/components/NavHeader'
 import PhotoUpload from '@/app/components/PhotoUpload'
+import CashClosingOverview from '@/app/components/CashClosingOverview'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import type { DashboardSummary, OutletWithStatus } from '@/lib/types'
 import {
@@ -505,6 +506,8 @@ export default function CEODashboard({ userName }: { userName: string }) {
             </button>
           </section>
         )}
+
+        {data && <CashClosingOverview outlets={data.outlets} />}
 
         <section className={`ops-live-strip ${onlineManagers.length ? 'has-online' : ''}`}>
           <div className="ops-live-heading">

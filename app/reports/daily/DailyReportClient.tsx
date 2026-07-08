@@ -14,6 +14,7 @@ import {
   Store,
   Trash2,
   Users,
+  WalletCards,
 } from 'lucide-react'
 
 type DailyOutletReport = {
@@ -39,6 +40,13 @@ type DailyOutletReport = {
   attendance_checked_out: number
   wastage_qty: number
   top_wastage_items: string[]
+  cash_closing_status: 'balanced' | 'shortage' | 'excess' | 'needs_review' | 'not_submitted'
+  expected_cash: number
+  physical_cash_counted: number
+  cash_difference: number
+  cash_counted_by: string | null
+  cash_verified_by: string | null
+  cash_submitted_at: string | null
   status: 'GREEN' | 'AMBER' | 'RED'
 }
 
@@ -57,6 +65,8 @@ type DailyReport = {
     unread_alerts: number
     managers_checked_in: number
     wastage_qty: number
+    cash_closings_submitted: number
+    cash_difference: number
   }
   outlets: DailyOutletReport[]
 }
@@ -213,6 +223,11 @@ export default function DailyReportClient({ userName }: { userName: string }) {
             <span>Wastage</span>
             <strong>{loading ? '-' : report?.totals.wastage_qty ?? 0}</strong>
           </div>
+          <div>
+            <WalletCards size={18} />
+            <span>Cash difference</span>
+            <strong>{loading ? '-' : formatMoney(report?.totals.cash_difference ?? 0)}</strong>
+          </div>
         </section>
 
         {topIssues && topIssues.length > 0 && (
@@ -254,6 +269,7 @@ export default function DailyReportClient({ userName }: { userName: string }) {
               <span>Issues</span>
               <span>Attendance</span>
               <span>Wastage</span>
+              <span>Cash close</span>
             </div>
             {loading
               ? Array.from({ length: 3 }).map((_, index) => (
@@ -297,6 +313,13 @@ export default function DailyReportClient({ userName }: { userName: string }) {
                       {outlet.top_wastage_items.length ? (
                         <small>{outlet.top_wastage_items.join(', ')}</small>
                       ) : null}
+                    </span>
+                    <span>
+                      <strong>{outlet.cash_closing_status.replace('_', ' ')}</strong>
+                      <small>
+                        Expected {formatMoney(outlet.expected_cash)} / counted {formatMoney(outlet.physical_cash_counted)}
+                      </small>
+                      <small>Difference {formatMoney(outlet.cash_difference)}</small>
                     </span>
                   </div>
                 ))}

@@ -88,6 +88,17 @@ type CounterReadingRow = {
   temperature_c: number | null
 }
 
+type CashClosingRow = {
+  outlet_id: string
+  expected_cash: number
+  physical_cash_counted: number
+  difference_amount: number
+  status: 'balanced' | 'shortage' | 'excess' | 'needs_review'
+  counted_by: string
+  verified_by: string | null
+  submitted_at: string
+}
+
 export type DailyOutletReport = {
   outlet_id: string
   outlet_name: string
@@ -115,6 +126,13 @@ export type DailyOutletReport = {
   wastage_entries: number
   wastage_qty: number
   top_wastage_items: string[]
+  cash_closing_status: CashClosingRow['status'] | 'not_submitted'
+  expected_cash: number
+  physical_cash_counted: number
+  cash_difference: number
+  cash_counted_by: string | null
+  cash_verified_by: string | null
+  cash_submitted_at: string | null
   status: 'GREEN' | 'AMBER' | 'RED'
 }
 
@@ -133,6 +151,8 @@ export type DailyReport = {
     unread_alerts: number
     managers_checked_in: number
     wastage_qty: number
+    cash_closings_submitted: number
+    cash_difference: number
   }
   outlets: DailyOutletReport[]
 }
@@ -192,6 +212,7 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
     attendanceRes,
     inventoryRes,
     counterRoundsRes,
+    cashClosingsRes,
   ] = await Promise.all([
     supabase
       .from('outlets')
@@ -231,6 +252,10 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
       .from('counter_temperature_rounds')
       .select('id, outlet_id, slot_key, status, scheduled_at')
       .eq('round_date', date),
+    supabase
+      .from('cash_closings')
+      .select('outlet_id, expected_cash, physical_cash_counted, difference_amount, status, counted_by, verified_by, submitted_at')
+      .eq('business_date', date),
   ])
 
   if (outletsRes.error) throw outletsRes.error
@@ -255,9 +280,15 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
   }
   else if (counterRoundsRes.error) throw counterRoundsRes.error
 
+  if (cashClosingsRes.error && isMissingTableError(cashClosingsRes.error)) {
+    pendingMigration.push('cash_closings')
+  }
+  else if (cashClosingsRes.error) throw cashClosingsRes.error
+
   const attendance = (attendanceRes.error ? [] : attendanceRes.data ?? []) as AttendanceRow[]
   const inventory = (inventoryRes.error ? [] : inventoryRes.data ?? []) as InventoryRow[]
   const counterRounds = (counterRoundsRes.error ? [] : counterRoundsRes.data ?? []) as CounterRoundRow[]
+  const cashClosings = (cashClosingsRes.error ? [] : cashClosingsRes.data ?? []) as CashClosingRow[]
   const counterRoundIds = counterRounds.map((round) => round.id)
   const counterReadingsRes = counterRoundIds.length
     ? await supabase
@@ -333,10 +364,26 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
             return `${item?.shortLabel ?? reading.item_key} ${reading.temperature_c} C`
           })
       : []
+    const cashClosing = cashClosings.find((row) => row.outlet_id === outlet.id)
+    const cashClosingStatus: DailyOutletReport['cash_closing_status'] =
+      cashClosing?.status ?? 'not_submitted'
 
     let status: DailyOutletReport['status'] = 'GREEN'
-    if (complianceRate < 75 || highComplaints > 0 || flaggedPhotos > 0) status = 'RED'
-    else if (complianceRate < 95 || complaints.length > 0 || unreadAlerts > 0 || wastageQty > 0) {
+    if (
+      complianceRate < 75 ||
+      highComplaints > 0 ||
+      flaggedPhotos > 0 ||
+      cashClosing?.status === 'shortage' ||
+      Math.abs(Number(cashClosing?.difference_amount ?? 0)) > 500
+    ) status = 'RED'
+    else if (
+      complianceRate < 95 ||
+      complaints.length > 0 ||
+      unreadAlerts > 0 ||
+      wastageQty > 0 ||
+      cashClosing?.status === 'excess' ||
+      cashClosing?.status === 'needs_review'
+    ) {
       status = 'AMBER'
     }
 
@@ -369,6 +416,13 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
         .length,
       wastage_qty: wastageQty,
       top_wastage_items: cleanTopWaste(inventoryLogs),
+      cash_closing_status: cashClosingStatus,
+      expected_cash: Number(cashClosing?.expected_cash ?? 0),
+      physical_cash_counted: Number(cashClosing?.physical_cash_counted ?? 0),
+      cash_difference: Number(cashClosing?.difference_amount ?? 0),
+      cash_counted_by: cashClosing?.counted_by ?? null,
+      cash_verified_by: cashClosing?.verified_by ?? null,
+      cash_submitted_at: cashClosing?.submitted_at ?? null,
       status,
     }
   })
@@ -393,6 +447,10 @@ export async function buildDailyReport(date = getIstParts().date): Promise<Daily
       unread_alerts: sumNumber(outlets, (outlet) => outlet.unread_alerts),
       managers_checked_in: sumNumber(outlets, (outlet) => outlet.attendance_checked_in),
       wastage_qty: sumNumber(outlets, (outlet) => outlet.wastage_qty),
+      cash_closings_submitted: outlets.filter(
+        (outlet) => outlet.cash_closing_status !== 'not_submitted'
+      ).length,
+      cash_difference: sumNumber(outlets, (outlet) => outlet.cash_difference),
     },
     outlets,
   }
@@ -429,6 +487,13 @@ export function dailyReportToCsv(report: DailyReport) {
     'Checked Out',
     'Wastage Qty',
     'Top Wastage',
+    'Cash Closing Status',
+    'Expected Cash',
+    'Physical Cash',
+    'Cash Difference',
+    'Cash Counted By',
+    'Cash Verified By',
+    'Cash Submitted At',
     'Manager',
     'Manager Phone',
   ]
@@ -458,6 +523,13 @@ export function dailyReportToCsv(report: DailyReport) {
     outlet.attendance_checked_out,
     outlet.wastage_qty,
     outlet.top_wastage_items.join('; '),
+    outlet.cash_closing_status,
+    outlet.expected_cash,
+    outlet.physical_cash_counted,
+    outlet.cash_difference,
+    outlet.cash_counted_by,
+    outlet.cash_verified_by,
+    outlet.cash_submitted_at,
     outlet.manager_name,
     outlet.manager_phone,
   ])

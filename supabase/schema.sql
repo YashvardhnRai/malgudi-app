@@ -153,6 +153,40 @@ CREATE TABLE counter_temperature_readings (
   )
 );
 
+CREATE TABLE cash_closings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
+  business_date DATE NOT NULL,
+  opening_cash_balance NUMERIC(12,2) NOT NULL CHECK (opening_cash_balance >= 0),
+  cash_sales_as_per_pos NUMERIC(12,2) NOT NULL CHECK (cash_sales_as_per_pos >= 0),
+  upi_sales NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (upi_sales >= 0),
+  card_sales NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (card_sales >= 0),
+  aggregator_sales NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (aggregator_sales >= 0),
+  cash_expenses NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (cash_expenses >= 0),
+  cash_deposited_or_handed_over NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (cash_deposited_or_handed_over >= 0),
+  physical_cash_counted NUMERIC(12,2) NOT NULL CHECK (physical_cash_counted >= 0),
+  expected_cash NUMERIC(12,2) GENERATED ALWAYS AS (
+    opening_cash_balance + cash_sales_as_per_pos - cash_expenses - cash_deposited_or_handed_over
+  ) STORED,
+  difference_amount NUMERIC(12,2) GENERATED ALWAYS AS (
+    physical_cash_counted - (opening_cash_balance + cash_sales_as_per_pos - cash_expenses - cash_deposited_or_handed_over)
+  ) STORED,
+  status TEXT NOT NULL CHECK (status IN ('balanced', 'shortage', 'excess', 'needs_review')),
+  counted_by TEXT NOT NULL,
+  verified_by TEXT,
+  submitted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  submitted_by_email TEXT NOT NULL,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notes TEXT,
+  proof_photo_url TEXT,
+  pos_closing_report_photo_url TEXT,
+  reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_by_email TEXT,
+  reviewed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(outlet_id, business_date)
+);
+
 CREATE TABLE alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   outlet_id UUID REFERENCES outlets(id),
@@ -176,6 +210,48 @@ CREATE INDEX idx_inventory_logs_outlet_date ON inventory_logs(outlet_id, log_dat
 CREATE INDEX idx_inventory_logs_wastage ON inventory_logs(outlet_id, log_date DESC, wasted_qty) WHERE wasted_qty > 0;
 CREATE INDEX idx_counter_rounds_outlet_date ON counter_temperature_rounds(outlet_id, round_date, scheduled_at);
 CREATE INDEX idx_counter_readings_round ON counter_temperature_readings(round_id, item_key);
+CREATE INDEX idx_cash_closings_date_status ON cash_closings(business_date DESC, status, outlet_id);
+
+CREATE OR REPLACE FUNCTION public.sync_cash_closing_status()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  cash_difference NUMERIC(12,2);
+BEGIN
+  cash_difference := NEW.physical_cash_counted - (
+    NEW.opening_cash_balance + NEW.cash_sales_as_per_pos
+    - NEW.cash_expenses - NEW.cash_deposited_or_handed_over
+  );
+  NEW.status := CASE
+    WHEN NEW.proof_photo_url IS NULL
+      OR NEW.pos_closing_report_photo_url IS NULL
+      OR NULLIF(BTRIM(NEW.verified_by), '') IS NULL
+      THEN 'needs_review'
+    WHEN cash_difference < 0 THEN 'shortage'
+    WHEN cash_difference > 0 THEN 'excess'
+    ELSE 'balanced'
+  END;
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_cash_closing_status_trigger ON cash_closings;
+CREATE TRIGGER sync_cash_closing_status_trigger
+BEFORE INSERT OR UPDATE OF
+  opening_cash_balance,
+  cash_sales_as_per_pos,
+  cash_expenses,
+  cash_deposited_or_handed_over,
+  physical_cash_counted,
+  verified_by,
+  proof_photo_url,
+  pos_closing_report_photo_url
+ON cash_closings
+FOR EACH ROW EXECUTE FUNCTION public.sync_cash_closing_status();
+
 CREATE INDEX idx_alerts_unread ON alerts(is_read, created_at);
 CREATE INDEX idx_users_email ON users(email);
 
@@ -208,6 +284,7 @@ ALTER TABLE shift_attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counter_temperature_rounds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counter_temperature_readings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_closings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
 
 -- CEO can see everything; managers see their outlet only

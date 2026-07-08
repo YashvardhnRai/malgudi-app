@@ -23,6 +23,15 @@ function getPhotoPath(value: string | null | undefined) {
   }
 }
 
+export async function signPhotoPath(value: string | null | undefined) {
+  const path = getPhotoPath(value)
+  if (!path) return null
+  const { data, error } = await getSupabaseServerClient().storage
+    .from('photos')
+    .createSignedUrl(path, SIGNED_URL_SECONDS)
+  return error ? null : data.signedUrl
+}
+
 export async function signPhotoRows<T extends { photo_url: string | null }>(rows: T[]) {
   if (!rows.length) return rows
   const supabase = getSupabaseServerClient()

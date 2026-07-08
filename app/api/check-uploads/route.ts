@@ -6,6 +6,7 @@ import {
   COUNTER_ROUND_SLOTS,
   counterRoundMinutes,
 } from '@/lib/counter-rounds'
+import { isCashClosingReminderDue } from '@/lib/cash-closing'
 import {
   deliverOperationalEmails,
   deliverOperationalPhoneAlerts,
@@ -72,7 +73,8 @@ export async function GET(request: NextRequest) {
   const dueCounterSlots = COUNTER_ROUND_SLOTS.filter(
     (slot) => nowMinutes >= counterRoundMinutes(slot) + 30
   )
-  if (!dueSlots.length && !dueCounterSlots.length) {
+  const cashClosingDue = isCashClosingReminderDue(nowMinutes)
+  if (!dueSlots.length && !dueCounterSlots.length && !cashClosingDue) {
     return NextResponse.json({ date: ist.date, checked: 0, reminders: 0 })
   }
 
@@ -389,6 +391,81 @@ export async function GET(request: NextRequest) {
       }
 
       results.push({ outlet: outlet.name, slot: slot.key, status: resultStatus })
+    }
+
+    if (cashClosingDue) {
+      const { data: closing, error: closingError } = await supabase
+        .from('cash_closings')
+        .select('id')
+        .eq('outlet_id', outlet.id)
+        .eq('business_date', ist.date)
+        .maybeSingle()
+
+      if (closingError) {
+        if (closingError.code === '42P01' || closingError.code === 'PGRST205') {
+          return NextResponse.json(
+            { error: 'Cash closing is waiting for the latest database migration' },
+            { status: 503 }
+          )
+        }
+      } else if (closing) {
+        results.push({ outlet: outlet.name, slot: 'cash-closing', status: 'done' })
+      } else {
+        const marker = `[cash-closing][date:${ist.date}]`
+        const { count: priorCount } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'CASH_CLOSING_MISSED')
+          .eq('outlet_id', outlet.id)
+          .gte('created_at', start)
+          .ilike('message', `%${marker}%`)
+
+        if ((priorCount ?? 0) === 0) {
+          const message = `Cash closing was not submitted by closing time at ${outlet.name}. ${marker}`
+          const notifications = ceoEmails.map((email) => ({
+            recipient_email: email,
+            recipient_phone:
+              ceoContacts?.find((contact) => contact.email.toLowerCase() === email)?.phone ??
+              null,
+            recipient_role: 'CEO',
+            type: 'CASH_CLOSING_MISSED',
+            title: 'Cash closing missed',
+            message,
+            outlet_id: outlet.id,
+            manager_phone: outlet.manager_phone,
+            is_read: false,
+          }))
+          if (manager?.email) {
+            notifications.push({
+              recipient_email: manager.email,
+              recipient_phone: manager.phone ?? outlet.manager_phone,
+              recipient_role: 'MANAGER',
+              type: 'CASH_CLOSING_REMINDER',
+              title: 'Submit cash closing',
+              message: `Today's cash closing is overdue. Open the shift board and submit it now. ${marker}`,
+              outlet_id: outlet.id,
+              manager_phone: outlet.manager_phone,
+              is_read: false,
+            })
+          }
+          await Promise.all([
+            supabase.from('notifications').insert(withoutDeliveryPhone(notifications)),
+            supabase.from('alerts').insert({
+              outlet_id: outlet.id,
+              alert_type: 'CASH_CLOSING_MISSED',
+              message,
+              severity: 'CRITICAL',
+              is_read: false,
+            }),
+            deliverOperationalEmails(notifications),
+            deliverOperationalPhoneAlerts(notifications),
+          ])
+          reminders += notifications.length
+          results.push({ outlet: outlet.name, slot: 'cash-closing', status: 'reminded' })
+        } else {
+          results.push({ outlet: outlet.name, slot: 'cash-closing', status: 'already-reminded' })
+        }
+      }
     }
   }
 

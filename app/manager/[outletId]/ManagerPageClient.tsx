@@ -32,6 +32,7 @@ import {
 import WorkerDock from "@/app/components/WorkerDock";
 import ManagerPresenceHeartbeat from "@/app/components/ManagerPresenceHeartbeat";
 import CounterTemperatureRoundPanel from "@/app/components/CounterTemperatureRound";
+import CashClosingPanel from "@/app/components/CashClosingPanel";
 import {
   decodeChecklistNotes,
   getIstParts,
@@ -786,6 +787,8 @@ export default function ManagerPageClient({
         </section>
           </>
         )}
+
+        <CashClosingPanel outletId={outletId} actorName={actorName} />
 
         <section className="manager-section-head">
           <div>

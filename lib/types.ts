@@ -106,6 +106,35 @@ export interface InventoryLog {
   created_at: string
 }
 
+export interface CashClosing {
+  id: string
+  outlet_id: string
+  business_date: string
+  opening_cash_balance: number
+  cash_sales_as_per_pos: number
+  upi_sales: number
+  card_sales: number
+  aggregator_sales: number
+  cash_expenses: number
+  cash_deposited_or_handed_over: number
+  physical_cash_counted: number
+  expected_cash: number
+  difference_amount: number
+  status: 'balanced' | 'shortage' | 'excess' | 'needs_review'
+  counted_by: string
+  verified_by: string | null
+  submitted_by: string | null
+  submitted_by_email: string
+  submitted_at: string
+  notes: string | null
+  proof_photo_url: string | null
+  pos_closing_report_photo_url: string | null
+  reviewed_by: string | null
+  reviewed_by_email: string | null
+  reviewed_at: string | null
+  updated_at: string
+}
+
 export interface CounterTemperatureReading {
   id: string
   round_id: string
@@ -171,6 +200,7 @@ export interface OutletDetail {
   attendance?: ShiftAttendance[]
   inventory?: InventoryLog[]
   counter_rounds?: CounterTemperatureRound[]
+  cash_closing?: CashClosing | null
   compliance_history: { date: string; rate: number }[]
 }
 

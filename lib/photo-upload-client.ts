@@ -167,7 +167,7 @@ async function removeQueuedCounterRound(id: string) {
   database.close()
 }
 
-async function compressPhoto(file: File) {
+export async function compressPhotoForUpload(file: File) {
   if (!file.type.startsWith('image/') || file.size <= MAX_COMPRESSED_BYTES) {
     return file
   }
@@ -311,7 +311,7 @@ async function sendCounterRound(round: {
 export async function submitPhotoUpload(
   payload: PhotoUploadPayload
 ): Promise<PhotoUploadResult> {
-  const files = await Promise.all(payload.files.map(compressPhoto))
+  const files = await Promise.all(payload.files.map(compressPhotoForUpload))
 
   try {
     const data = await sendUpload({ ...payload, files })
@@ -383,7 +383,7 @@ export async function submitCounterRound(
   const compressedItems = await Promise.all(
     payload.items.map(async (item) => ({
       ...item,
-      file: await compressPhoto(item.file),
+      file: await compressPhotoForUpload(item.file),
     }))
   )
 
